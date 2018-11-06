@@ -1,0 +1,4 @@
+apiVersion: v1
+description: A Helm chart for Garafana Dashboards
+name: grafanadash
+version: 0.0.1

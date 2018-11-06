@@ -1,0 +1,31 @@
+FROM golang:1.10.1
+
+MAINTAINER Denis Kyorov <makkalot@gmail.com>
+
+ENV PROTOBUF_VERSION=3.3.0
+ENV TMP_DIR=/tmp/proto
+
+RUN set -x && \
+    apt-get update && \
+    apt-get install -y unzip wget python3-pip
+
+
+RUN set -x && \
+    wget -c -P ${TMP_DIR} https://github.com/google/protobuf/releases/download/v${PROTOBUF_VERSION}/protoc-${PROTOBUF_VERSION}-linux-x86_64.zip && \
+    cd ${TMP_DIR} && \
+    unzip protoc-${PROTOBUF_VERSION}-linux-x86_64.zip -d /usr/local/lib/proto && \
+    ln -s /usr/local/lib/proto/bin/protoc /usr/local/bin/protoc && \
+    chmod go+rx /usr/local/bin/protoc && \
+    rm -rf ${TMP_DIR}
+
+RUN set -x && \
+    go get -u google.golang.org/grpc && \
+    go get -u github.com/golang/protobuf/proto && \
+    go get -u github.com/golang/protobuf/protoc-gen-go && \
+    go get -u github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway && \
+    go get -u github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
+
+# Install the python grpc tools needed for code generation
+RUN set -x && \
+    python3 -m pip install --upgrade pip && \
+    pip3 install grpcio grpcio-tools

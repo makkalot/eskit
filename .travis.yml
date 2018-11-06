@@ -1,4 +1,5 @@
 sudo: required
+language: go
 
 services:
   - docker
@@ -15,8 +16,16 @@ before_install:
 jobs:
   include:
     - stage: build
-      script: docker-compose version
-#    - # stage name not required, will continue to use `test`
-#      script: ./test 2
-#    - stage: deploy
-#      script: ./deploy
+      script: make build-compose-go
+    - stage: test
+      before_script: make build-compose-go
+      script: make test-compose-go
+    - stage: test
+      before_script: make build-compose-go
+      script: make test-compose-py
+    - stage: publish
+      if: type = push AND (branch = master OR tag IS present)
+      script: make publish
+    - stage: deploy
+      if: type = push AND (branch = master OR tag IS present)
+      script: make deploy-do

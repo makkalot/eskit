@@ -1,0 +1,32 @@
+FROM golang:1.10.1-alpine
+
+ENV KUBE_LATEST_VERSION="v1.11.4"
+ENV HELM_VERSION v2.11.0
+ENV HELM_FILENAME helm-${HELM_VERSION}-linux-amd64.tar.gz
+ENV HELM_URL https://storage.googleapis.com/kubernetes-helm/${HELM_FILENAME}
+
+RUN apk update &&  apk add make && apk add bash && apk add --no-cache openssl ca-certificates curl git wget
+
+RUN curl -L https://storage.googleapis.com/kubernetes-release/release/${KUBE_LATEST_VERSION}/bin/linux/amd64/kubectl -o /usr/local/bin/kubectl && \
+    chmod +x "/usr/local/bin/kubectl"
+
+RUN curl -o /tmp/$HELM_FILENAME ${HELM_URL} \
+  && tar -zxvf /tmp/${HELM_FILENAME} -C /tmp \
+  && mv /tmp/linux-amd64/helm /bin/helm \
+  && rm -rf /tmp/*
+
+RUN mkdir -p /tmp \
+    && helm init --client-only \
+    && helm repo update
+
+RUN mkdir -p cd /go/src/github.com/sstarcher \
+    && cd /go/src/github.com/sstarcher \
+    && git clone --single-branch -b feature/printversion https://github.com/makkalot/helm-release.git \
+    && cd helm-release \
+    && go build -o helm-release . \
+    && cp helm-release /bin/helm-release
+
+# RUN mkdir -p /root/.helm/cache/plugins
+#    && helm plugin install https://github.com/sstarcher/helm-release --debug
+
+ENV PATH="/usr/local/bin:${PATH}"

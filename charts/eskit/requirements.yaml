@@ -1,0 +1,8 @@
+dependencies:
+  - name: "stable/prometheus"
+    version: "7.3.6"
+    repository: "https://kubernetes-charts.storage.googleapis.com"
+
+  - name: "stable/postgresql"
+    version: "2.3.x"
+    repository: "https://kubernetes-charts.storage.googleapis.com"

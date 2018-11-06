@@ -1,0 +1,75 @@
+syntax = "proto3";
+
+package contracts.users;
+option go_package = "github.com/makkalot/eskit/generated/grpc/go/users";
+
+import "users/user.proto";
+import "common/originator.proto";
+import "google/api/annotations.proto";
+
+
+message CreateRequest {
+    string email = 1;
+    string first_name = 2;
+    string last_name = 3;
+}
+
+message CreateResponse {
+    User user = 1;
+}
+
+message GetRequest {
+    contracts.common.Originator originator = 1;
+    bool fetch_deleted = 2;
+}
+
+message GetResponse {
+    User user = 1;
+}
+
+message UpdateRequest {
+    // version bit for the update requests are required
+    contracts.common.Originator originator = 1;
+    string email = 2;
+    string first_name = 3;
+    string last_name = 4;
+    bool active = 5;
+    repeated string workspaces = 6;
+}
+
+message UpdateResponse {
+    User user = 1;
+}
+
+message DeleteRequest {
+    contracts.common.Originator originator = 1;
+}
+
+message DeleteResponse {
+    contracts.common.Originator originator = 1;
+}
+
+message HealthRequest {
+}
+
+message HealthResponse {
+    string message = 1;
+}
+
+
+service UserService {
+
+    rpc Healtz (HealthRequest) returns (HealthResponse) {
+        option (google.api.http) = {
+            get: "/v1/healtz"
+        };
+    }
+
+    rpc Create(CreateRequest) returns (CreateResponse){}
+
+    rpc Get(GetRequest) returns (GetResponse){}
+
+    rpc Update(UpdateRequest) returns (UpdateResponse){}
+
+    rpc Delete(DeleteRequest) returns (DeleteResponse){}
+}

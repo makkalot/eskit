@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package contracts.eventstore;
+option go_package = "github.com/makkalot/eskit/generated/grpc/go/eventstore";
+
+import "common/originator.proto";
+
+// Event is what you operate on with event store
+// It's the smalled bit that the event store is aware of
+message Event {
+    // The object this event belongs to
+    contracts.common.Originator originator = 1;
+    // this is the event type that this is related to
+    // event type should be in the format of `Entity.Created` so that store can infer the
+    // partition this event belongs to
+    string event_type = 2;
+    // the data of the event is inside the payload
+    string payload = 3;
+    // utc unix timestamp of the event occurence
+    int64 occured_on = 4;
+}
+
+message AppLogEntry {
+    //  the id number in the stream
+    string id = 1;
+    Event event = 2;
+}

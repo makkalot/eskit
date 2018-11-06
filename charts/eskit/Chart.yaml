@@ -1,0 +1,4 @@
+apiVersion: v1
+description: A Helm chart for Kubernetes
+name: eskitpack
+version: 0.0.2-0.feature.docs.88+fd7a8792

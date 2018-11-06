@@ -1,0 +1,33 @@
+global:
+  scrape_interval:     15s # By default, scrape targets every 15 seconds.
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets:
+        - prom:9090
+
+
+  - job_name: 'events'
+    static_configs:
+      - targets: ['metrics:8888']
+        labels:
+          group: 'consumer'
+
+  - job_name: 'store'
+    static_configs:
+      - targets: ['store:8888']
+        labels:
+          group: 'grpc'
+
+  - job_name: 'consumerapi'
+    static_configs:
+      - targets: ['consumerapi:8888']
+        labels:
+          group: 'grpc'
+
+  - job_name: 'crudstore'
+    static_configs:
+      - targets: ['crudstore:8888']
+        labels:
+          group: 'consumer'

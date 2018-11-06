@@ -1,0 +1,65 @@
+#image: docker:stable
+image: registry.github.com/makkalot/simple-micro/compose:0.0.5
+
+# When using dind, it's wise to use the overlayfs driver for
+# improved performance.
+variables:
+  CLUSTER_NAME: eskit-cluster
+  DOCKER_DRIVER: overlay
+#  GCLOUD_PROJECT: verdant-tempest-186207
+#  CLOUDSDK_COMPUTE_ZONE: europe-west1-d
+
+services:
+- docker:dind
+
+stages:
+  - build
+  - test
+  - release
+  - deploy
+
+build-go:
+  stage: build
+  script:
+    - make build-compose-go
+  artifacts:
+    expire_in: 30mins
+    paths:
+      - bin/
+
+test-go:
+  stage: test
+  dependencies:
+    - build-go
+  script:
+    - make test-compose-go
+
+test-py:
+  stage: test
+  dependencies:
+    - build-go
+  script:
+    - make test-compose-py
+
+release:
+  stage: release
+  dependencies:
+    - test-go
+    - test-py
+  script:
+    - make publish
+  only:
+    - master
+    - tags
+
+deploy:
+  stage: deploy
+  dependencies:
+    - test-go
+    - test-py
+    - release
+  script:
+    - make deploy-do
+  only:
+    - master
+    - tags
