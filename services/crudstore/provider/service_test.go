@@ -138,7 +138,7 @@ func TestCrudStoreProvider_Update(t *testing.T) {
 	assert.NoError(t, util.AssertGrpcCodeErr(err, codes.NotFound))
 
 	// try to insert an object with same version so we can test the concurrency
-	firstUser.FirstName = "kiremitman"
+	firstUser.FirstName = "eskitman"
 	_, err = crudClient.Update(retrievedUser)
 	assert.Error(t, err)
 	assert.NoError(t, util.AssertGrpcCodeErr(err, codes.AlreadyExists))

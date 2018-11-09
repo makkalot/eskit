@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.com/makkalot/eskit.svg?branch=master)](https://travis-ci.com/makkalot/eskit)
+
 ## ESKIT (Event Sourcing Kit)
 
 Eskit is a collection of microservices built on top of Event Sourcing Idea. It can be useful
@@ -99,7 +101,7 @@ General Microservice Architecture looks like :
 - Create a fork
 - Clone your own fork : `git clone git@gitlab.com:<you-user-name>/eskit.git`
 - cd `eskit`
-- Add upstream : `git remote add upstream git@gitlab.com:kiremitkiran/eskit.git`
+- Add upstream : `git remote add upstream git@github.com/makkalot/eskit.git`
 - Fetch The latest changes from the upstream : `git fetch upstream`
 - Merge them to your master : `git rebase upstream/master`
 - Create the branch you want to work on : `git checkout -b <branch-name>`

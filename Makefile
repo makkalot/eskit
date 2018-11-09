@@ -9,7 +9,7 @@ GCLOUD_CONTEXT=gke_verdant-tempest-186207_europe-west1-d_simple-micro-cluster
 PROJECT_NAME=eskit
 HOSTNAME_SUFFIX=$(PROJECT_NAME).makkalot.com
 
-CI_JOB_ID?=kiremit
+CI_JOB_ID?=eskit
 COMPOSE=docker-compose -p $(CI_JOB_ID)
 COMMON_SH=source ./scripts/common.sh &&
 GINKGO_FOCUS?=integration

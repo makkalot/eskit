@@ -23,9 +23,9 @@ func TestCrudAdd(t *testing.T) {
 
 	user := &users.User{
 		Originator: originator,
-		Email:      "testkiremit@gmail.com",
+		Email:      "testeskit@gmail.com",
 		FirstName:  "test",
-		LastName:   "kiremit",
+		LastName:   "eskit",
 	}
 
 	marshaller := &jsonpb.Marshaler{}
@@ -59,9 +59,9 @@ func TestCrudGet(t *testing.T) {
 
 	user := &users.User{
 		Originator: originator,
-		Email:      "testkiremit@gmail.com",
+		Email:      "testeskit@gmail.com",
 		FirstName:  "test",
-		LastName:   "kiremit",
+		LastName:   "eskit",
 	}
 
 	marshaller := &jsonpb.Marshaler{}
@@ -103,9 +103,9 @@ func TestUpdate(t *testing.T) {
 
 	user := &users.User{
 		Originator: originator,
-		Email:      "testkiremit@gmail.com",
+		Email:      "testeskit@gmail.com",
 		FirstName:  "test",
-		LastName:   "kiremit",
+		LastName:   "eskit",
 	}
 
 	marshaller := &jsonpb.Marshaler{}

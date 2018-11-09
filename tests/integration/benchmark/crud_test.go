@@ -40,9 +40,9 @@ func BenchmarkCrudCreate(b *testing.B) {
 
 		user := &users.User{
 			Originator: originator,
-			Email:      fmt.Sprintf("testkiremit_%d@gmail.com", i),
+			Email:      fmt.Sprintf("testeskit_%d@gmail.com", i),
 			FirstName:  "test",
-			LastName:   "kiremit",
+			LastName:   "eskit",
 		}
 
 		_, err := crud.Create(user)
@@ -81,9 +81,9 @@ func BenchmarkGetNoUpdate(b *testing.B) {
 
 		user := &users.User{
 			Originator: originator,
-			Email:      fmt.Sprintf("testkiremitget_%d@gmail.com", i),
+			Email:      fmt.Sprintf("testeskitget_%d@gmail.com", i),
 			FirstName:  "test",
-			LastName:   "kiremit",
+			LastName:   "eskit",
 		}
 
 		createOriginator, err := crud.Create(user)
@@ -134,9 +134,9 @@ func BenchmarkGetWithUpdate(b *testing.B) {
 
 		user := &users.User{
 			Originator: originator,
-			Email:      fmt.Sprintf("testkiremitget_%d@gmail.com", i),
+			Email:      fmt.Sprintf("testeskitget_%d@gmail.com", i),
 			FirstName:  "test",
-			LastName:   "kiremit",
+			LastName:   "eskit",
 		}
 
 		createOriginator, err := crud.Create(user)
@@ -156,7 +156,7 @@ func BenchmarkGetWithUpdate(b *testing.B) {
 				log.Println("fetching failed : ", err)
 			}
 			log.Println("Fetched user : ", spew.Sdump(u))
-			u.LastName = fmt.Sprintf("kiremit_%d", i)
+			u.LastName = fmt.Sprintf("eskit_%d", i)
 			log.Println("Saving : ", spew.Sdump(u))
 			if _, err := crud.Update(u); err != nil {
 				log.Println("update failed : ", err)

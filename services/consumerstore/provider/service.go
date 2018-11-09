@@ -17,7 +17,7 @@ import (
 var (
 	consumerProgress = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "kiremit_consumers_progress",
+			Name: "eskit_consumers_progress",
 			Help: "Consumer Progress",
 		}, []string{
 			"consumer_name",
@@ -25,7 +25,7 @@ var (
 
 	consumerLastSeen = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "kiremit_consumers_lastseen",
+			Name: "eskit_consumers_lastseen",
 			Help: "Consumer Progress",
 		}, []string{
 			"consumer_name",
@@ -33,7 +33,7 @@ var (
 
 	consumedCount = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "kiremit_consumers_consumed_count",
+			Name: "eskit_consumers_consumed_count",
 			Help: "Consume count",
 		}, []string{
 			"consumer_name",

@@ -19,7 +19,7 @@ import (
 var (
 	lastStreamID = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "kiremit_events_stream_last_id",
+			Name: "eskit_events_stream_last_id",
 			Help: "LastID in the stream",
 		}, []string{
 			"application_id", "partition_id",
@@ -27,7 +27,7 @@ var (
 
 	streamCounter = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "kiremit_events_stream_count",
+			Name: "eskit_events_stream_count",
 			Help: "Stream Count",
 		}, []string{
 			"application_id", "partition_id",
