@@ -1,0 +1,82 @@
+syntax = "proto3";
+
+package contracts.eventstore;
+option go_package = "github.com/makkalot/eskit/generated/grpc/go/eventstore";
+
+import "common/originator.proto";
+import "eventstore/event.proto";
+import "google/api/annotations.proto";
+
+message AppendEventRequest {
+    Event event = 1;
+}
+
+message AppendEventResponse {
+}
+
+
+message GetEventsRequest {
+    // The object this event belongs to if the version is omitted all of the events
+    // are going to be fetched, if version is supplied all the events from that version
+    // are going to returned back.
+    contracts.common.Originator originator = 1;
+    // entity type like Users, Projects and etc
+    string entity_type = 2;
+}
+
+message GetEventsResponse {
+    repeated Event events = 1;
+}
+
+
+message AppLogRequest {
+    // specifies the id from which to start the listing of the events
+    // if not specified starts from the beginning
+    string from_id = 1;
+    // number of events to get back if not specifies 20 is default
+    uint32 size = 2;
+    // optional parameter to specify which events we're interested into
+    // it can be specififed as eventType.* or specific event as well eventType.eventName
+    string selector = 3;
+    // this is in general the entity type
+    string pipeline_id = 4;
+}
+
+message AppLogResponse {
+    repeated AppLogEntry results = 1;
+}
+
+
+message AppLogConsumeEntry {
+    contracts.common.Originator originator = 1;
+    string offset = 2;
+}
+
+
+message HealthRequest {
+}
+
+message HealthResponse {
+    string message = 1;
+}
+
+service EventstoreService {
+
+    rpc Healtz (HealthRequest) returns (HealthResponse) {
+        option (google.api.http) = {
+            get: "/v1/healtz"
+        };
+    }
+
+    rpc Append (AppendEventRequest) returns (AppendEventResponse) {
+    }
+
+    rpc GetEvents (GetEventsRequest) returns (GetEventsResponse) {
+    }
+
+    rpc Logs (AppLogRequest) returns (AppLogResponse) {
+    }
+
+    rpc LogsPoll (AppLogRequest) returns (stream AppLogEntry) {
+    }
+}

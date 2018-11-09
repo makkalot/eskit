@@ -1,0 +1,22 @@
+image:
+  pullPolicy: Always
+  repository: makkalot/eskit-consumerstore
+  tag: 0.0.2-0.feature.docs.88
+ingress:
+  annotations:
+    kubernetes.io/ingress.class: nginx
+  enabled: true
+  hosts:
+  - consumerstore.local
+  tls: null
+replicaCount: 1
+resources: {}
+service:
+  externalPort: 9090
+  externalPortGw: 8080
+  externalPortMetrics: 8888
+  internalPort: 9090
+  internalPortGw: 8080
+  internalPortMetrics: 8888
+  name: consumerstoregrpc
+  type: ClusterIP

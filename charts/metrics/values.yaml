@@ -1,0 +1,13 @@
+image:
+  pullPolicy: Always
+  repository: makkalot/eskit-metrics
+  tag: 0.0.2-0.feature.docs.88
+ingress:
+  enabled: false
+replicaCount: 1
+resources: {}
+service:
+  externalPortMetrics: 8888
+  internalPortMetrics: 8888
+  name: metricsgrpc
+  type: ClusterIP

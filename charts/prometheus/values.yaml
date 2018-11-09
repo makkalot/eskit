@@ -1,0 +1,63 @@
+server:
+  name: proms
+  ingress:
+    enabled: true
+    hosts:
+      - proms.local
+
+  persistentVolume:
+    enabled: true
+
+kubeStateMetrics:
+  service:
+    servicePort: 8888
+
+serverFiles:
+  prometheus.yml:
+    scrape_configs:
+      - job_name: 'eventstore'
+        static_configs:
+          - targets: ['eskit-eventstore-eventstore:8888']
+            labels:
+              group: 'grpc'
+
+      - job_name: 'consumerstore'
+        static_configs:
+          - targets: ['eskit-consumerstore-consumerstore:8888']
+            labels:
+              group: 'grpc'
+
+      - job_name: 'crudstore'
+        static_configs:
+          - targets: ['eskit-crudstore-crudstore:8888']
+            labels:
+              group: 'grpc'
+
+      - job_name: 'users'
+        static_configs:
+          - targets: ['eskit-users-users:8888']
+            labels:
+              group: 'grpc'
+
+      - job_name: 'events'
+        static_configs:
+          - targets: ['eskit-metrics-metrics:8888']
+            labels:
+              group: 'consumer'
+
+      - job_name: 'k8s-metrics'
+        static_configs:
+          - targets: ['eskit-prom-prometheus-kube-state-metrics:8888']
+            labels:
+              group: 'k8s'
+
+      - job_name: 'prometheus'
+        static_configs:
+          - targets: ['eskit-prom-prometheus-proms']
+
+
+      - job_name: 'node'
+        static_configs:
+          - targets: ['eskit-prom-prometheus-node-exporter:9100']
+            labels:
+              group: 'k8s'

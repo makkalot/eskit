@@ -1,0 +1,11 @@
+FROM alpine:latest
+
+RUN apk update
+RUN apk add git nodejs nodejs-npm bash make
+RUN git clone https://github.com/swagger-api/swagger-editor.git && \
+    cd swagger-editor && \
+    npm install
+
+EXPOSE 3001
+
+
