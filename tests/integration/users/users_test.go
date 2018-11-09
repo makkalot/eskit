@@ -38,7 +38,7 @@ var _ = Describe("Users", func() {
 			req := &users.CreateRequest{
 				Email:     "ahmet@ahmet.com",
 				FirstName: "SameName",
-				LastName:  "Kiremitkiran",
+				LastName:  "Eskit",
 			}
 			resp, err := userClient.Create(context.Background(), req)
 
@@ -49,7 +49,7 @@ var _ = Describe("Users", func() {
 			req2 := &users.CreateRequest{
 				Email:     "osman@osman.com",
 				FirstName: "SameName",
-				LastName:  "Kiremitkiran",
+				LastName:  "Eskit",
 			}
 			resp2, err := userClient.Create(context.Background(), req2)
 			userID2 = resp2.User.Originator.Id
@@ -78,7 +78,7 @@ var _ = Describe("Users", func() {
 				return
 			}
 			req := &users.CreateRequest{
-				Email:     "kiremit@gmail.com",
+				Email:     "eskit@gmail.com",
 				FirstName: "Ahmet",
 				LastName:  "Abi",
 			}

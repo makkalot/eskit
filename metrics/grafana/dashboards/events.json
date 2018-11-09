@@ -79,7 +79,7 @@
       "tableColumn": "",
       "targets": [
         {
-          "expr": "sum(kiremit_events_store_total)",
+          "expr": "sum(eskit_events_store_total)",
           "format": "time_series",
           "hide": false,
           "intervalFactor": 1,
@@ -160,7 +160,7 @@
       "tableColumn": "",
       "targets": [
         {
-          "expr": "sum without(event_type, entity_type)((rate(kiremit_events_store_total[1m])))",
+          "expr": "sum without(event_type, entity_type)((rate(eskit_events_store_total[1m])))",
           "format": "time_series",
           "hide": false,
           "intervalFactor": 1,
@@ -241,7 +241,7 @@
       "tableColumn": "",
       "targets": [
         {
-          "expr": "sum without(event_type)(kiremit_events_store_total{entity_type=\"$entity\"})",
+          "expr": "sum without(event_type)(eskit_events_store_total{entity_type=\"$entity\"})",
           "format": "time_series",
           "hide": false,
           "intervalFactor": 1,
@@ -322,7 +322,7 @@
       "tableColumn": "",
       "targets": [
         {
-          "expr": "sum without(event_type)(rate(kiremit_events_store_total{entity_type=\"$entity\"}[1m]))",
+          "expr": "sum without(event_type)(rate(eskit_events_store_total{entity_type=\"$entity\"}[1m]))",
           "format": "time_series",
           "hide": false,
           "intervalFactor": 1,
@@ -379,7 +379,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum by(event_type)(rate(kiremit_events_store_total{entity_type=\"$entity\"}[1m]))",
+          "expr": "sum by(event_type)(rate(eskit_events_store_total{entity_type=\"$entity\"}[1m]))",
           "format": "time_series",
           "hide": false,
           "instant": false,
@@ -465,7 +465,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "increase(kiremit_events_store_total{entity_type=\"$entity\"}[1m])",
+          "expr": "increase(eskit_events_store_total{entity_type=\"$entity\"}[1m])",
           "format": "time_series",
           "hide": false,
           "instant": false,
@@ -551,7 +551,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "increase(kiremit_events_crud_total{entity_type=\"$entity\"}[1m])",
+          "expr": "increase(eskit_events_crud_total{entity_type=\"$entity\"}[1m])",
           "format": "time_series",
           "hide": false,
           "intervalFactor": 1,
@@ -636,7 +636,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "increase(kiremit_events_crud_listview{entity_type=\"$entity\"}[1m])",
+          "expr": "increase(eskit_events_crud_listview{entity_type=\"$entity\"}[1m])",
           "format": "time_series",
           "hide": false,
           "instant": false,
@@ -707,7 +707,7 @@
         "multi": false,
         "name": "entity",
         "options": [],
-        "query": "kiremit_events_store_total",
+        "query": "eskit_events_store_total",
         "refresh": 1,
         "regex": ".*entity_type=\"(.*?)\".*",
         "sort": 0,

@@ -23,7 +23,7 @@ const (
 var (
 	eventStoreEvents = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "kiremit_events_store_total",
+			Name: "eskit_events_store_total",
 			Help: "Total events in the eventstore",
 		}, []string{
 			"entity_type", "event_type",
@@ -31,7 +31,7 @@ var (
 
 	crudStoreEvents = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "kiremit_events_crud_total",
+			Name: "eskit_events_crud_total",
 			Help: "Total events for the crudstore",
 		}, []string{
 			"entity_type", "event_type",

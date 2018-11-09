@@ -78,7 +78,7 @@
       "tableColumn": "",
       "targets": [
         {
-          "expr": "sum without(application_id, partition_id)(rate(kiremit_events_stream_count[1m]))",
+          "expr": "sum without(application_id, partition_id)(rate(eskit_events_stream_count[1m]))",
           "format": "time_series",
           "hide": false,
           "instant": true,
@@ -160,7 +160,7 @@
       "tableColumn": "",
       "targets": [
         {
-          "expr": "sum without(consumer_name)(rate(kiremit_consumers_consumed_count[1m]))",
+          "expr": "sum without(consumer_name)(rate(eskit_consumers_consumed_count[1m]))",
           "format": "time_series",
           "hide": false,
           "instant": true,
@@ -242,7 +242,7 @@
       "tableColumn": "",
       "targets": [
         {
-          "expr": "max(kiremit_events_stream_last_id)",
+          "expr": "max(eskit_events_stream_last_id)",
           "format": "time_series",
           "hide": false,
           "instant": true,
@@ -386,7 +386,7 @@
       ],
       "targets": [
         {
-          "expr": "kiremit_events_stream_last_id",
+          "expr": "eskit_events_stream_last_id",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -435,7 +435,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "rate(kiremit_events_stream_count[1m])",
+          "expr": "rate(eskit_events_stream_count[1m])",
           "format": "time_series",
           "hide": false,
           "intervalFactor": 1,
@@ -606,7 +606,7 @@
       ],
       "targets": [
         {
-          "expr": "kiremit_consumers_progress",
+          "expr": "eskit_consumers_progress",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -655,7 +655,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "rate(kiremit_consumers_consumed_count[1m])",
+          "expr": "rate(eskit_consumers_consumed_count[1m])",
           "format": "time_series",
           "hide": false,
           "intervalFactor": 1,
@@ -842,7 +842,7 @@
       ],
       "targets": [
         {
-          "expr": "kiremit_consumers_lastseen",
+          "expr": "eskit_consumers_lastseen",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -891,7 +891,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "100 * kiremit_consumers_progress / ignoring(consumer_name, group, instance, job) group_left sum without(partition_id, application_id, job, instance, group)(kiremit_events_stream_last_id)",
+          "expr": "100 * eskit_consumers_progress / ignoring(consumer_name, group, instance, job) group_left sum without(partition_id, application_id, job, instance, group)(eskit_events_stream_last_id)",
           "format": "time_series",
           "hide": false,
           "instant": false,
