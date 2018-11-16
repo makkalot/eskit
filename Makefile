@@ -105,8 +105,8 @@ deps: deps-go
 
 .PHONY: deps-go
 deps-go:
-	glide cc
-	glide up
+	go get -v -u ./...
+	go mod vendor
 
 
 # Build related tasks
