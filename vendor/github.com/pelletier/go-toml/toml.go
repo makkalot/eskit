@@ -215,15 +215,17 @@ func (t *Tree) SetPathWithOptions(keys []string, opts SetOptions, value interfac
 
 	var toInsert interface{}
 
-	switch v := value.(type) {
+	switch value.(type) {
 	case *Tree:
-		v.comment = opts.Comment
+		tt := value.(*Tree)
+		tt.comment = opts.Comment
 		toInsert = value
 	case []*Tree:
 		toInsert = value
 	case *tomlValue:
-		v.comment = opts.Comment
-		toInsert = v
+		tt := value.(*tomlValue)
+		tt.comment = opts.Comment
+		toInsert = tt
 	default:
 		toInsert = &tomlValue{value: value, comment: opts.Comment, commented: opts.Commented, multiline: opts.Multiline}
 	}
@@ -276,15 +278,17 @@ func (t *Tree) SetPathWithComment(keys []string, comment string, commented bool,
 
 	var toInsert interface{}
 
-	switch v := value.(type) {
+	switch value.(type) {
 	case *Tree:
-		v.comment = comment
+		tt := value.(*Tree)
+		tt.comment = comment
 		toInsert = value
 	case []*Tree:
 		toInsert = value
 	case *tomlValue:
-		v.comment = comment
-		toInsert = v
+		tt := value.(*tomlValue)
+		tt.comment = comment
+		toInsert = tt
 	default:
 		toInsert = &tomlValue{value: value, comment: comment, commented: commented}
 	}
