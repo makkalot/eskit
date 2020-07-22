@@ -57,6 +57,7 @@ services:
      - store
    environment:
     - EVENT_STORE_ENDPOINT=store:9090
+    - DB_URI=host=db port=5432 user=postgres dbname=eventsourcing password=t00r sslmode=disable
 
 
   consumerapi:

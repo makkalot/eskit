@@ -1,23 +1,24 @@
 package provider
 
 import (
-	store "github.com/makkalot/eskit/generated/grpc/go/eventstore"
 	"context"
 	"github.com/makkalot/eskit/generated/grpc/go/common"
+	store "github.com/makkalot/eskit/generated/grpc/go/eventstore"
+	eskitcommon "github.com/makkalot/eskit/services/lib/common"
+	"github.com/makkalot/eskit/services/lib/eventstore"
 	"github.com/satori/go.uuid"
-	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/codes"
-	commonutil "github.com/makkalot/eskit/services/common"
+	"google.golang.org/grpc/status"
+	"log"
 	"strconv"
 	"time"
-	"log"
 )
 
 type EventStoreProvider struct {
-	estore Store
+	estore eventstore.Store
 }
 
-func NewEventStoreApiProvider(estore Store) (store.EventstoreServiceServer, error) {
+func NewEventStoreApiProvider(estore eventstore.Store) (store.EventstoreServiceServer, error) {
 	return &EventStoreProvider{
 		estore: estore,
 	}, nil
@@ -49,7 +50,7 @@ func (svc *EventStoreProvider) Append(ctx context.Context, request *store.Append
 
 	if err := svc.estore.Append(event); err != nil {
 		log.Println("append failed : ", err)
-		if _, ok := err.(*ErrDuplicate); ok {
+		if _, ok := err.(*eventstore.ErrDuplicate); ok {
 			return nil, status.Errorf(codes.AlreadyExists, "append : %v", err)
 		}
 		return nil, status.Errorf(codes.Internal, "append : %v", err)
@@ -181,11 +182,11 @@ func (svc *EventStoreProvider) isEntryCompliant(event *store.Event, selector str
 		return true
 	}
 
-	selectorEntityType := commonutil.ExtractEntityTypeFromStr(selector)
-	selectorEventType := commonutil.ExtractEventTypeFromStr(selector)
+	selectorEntityType := eskitcommon.ExtractEntityTypeFromStr(selector)
+	selectorEventType := eskitcommon.ExtractEventTypeFromStr(selector)
 
-	entityType := commonutil.ExtractEntityType(event)
-	eventName := commonutil.ExtractEventType(event)
+	entityType := eskitcommon.ExtractEntityType(event)
+	eventName := eskitcommon.ExtractEventType(event)
 
 	if selectorEntityType != "*" && selectorEntityType != entityType {
 		return false

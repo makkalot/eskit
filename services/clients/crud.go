@@ -1,18 +1,18 @@
 package clients
 
 import (
-	"github.com/makkalot/eskit/generated/grpc/go/crudstore"
-	"google.golang.org/grpc"
 	"context"
-	"github.com/makkalot/eskit/generated/grpc/go/common"
 	"fmt"
-	"github.com/golang/protobuf/proto"
-	"reflect"
 	"github.com/golang/protobuf/jsonpb"
-	common2 "github.com/makkalot/eskit/services/common"
-	"google.golang.org/grpc/status"
+	"github.com/golang/protobuf/proto"
+	"github.com/makkalot/eskit/generated/grpc/go/common"
+	"github.com/makkalot/eskit/generated/grpc/go/crudstore"
+	common3 "github.com/makkalot/eskit/services/lib/common"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"log"
+	"reflect"
 )
 
 func NewCrudStoreGRPCClient(ctx context.Context, storeEndpoint string) (crudstore.CrudStoreServiceClient, error) {
@@ -29,7 +29,7 @@ func NewCrudStoreGrpcClientWithWait(ctx context.Context, storeEndpoint string) (
 	var conn *grpc.ClientConn
 	var storeClient crudstore.CrudStoreServiceClient
 
-	err := common2.RetryNormal(func() error {
+	err := common3.RetryNormal(func() error {
 		var err error
 		conn, err = grpc.Dial(storeEndpoint, grpc.WithInsecure())
 		if err != nil {
@@ -95,7 +95,7 @@ func (crud *CrudStoreClient) Create(msg proto.Message) (*common.Originator, erro
 	var createErr error
 	var createResp *crudstore.CreateResponse
 
-	if err := common2.RetryShort(func() error {
+	if err := common3.RetryShort(func() error {
 		createResp, err = crud.CrudGRPC.Create(crud.ctx, req)
 		if err != nil {
 			if status.Code(err) == codes.FailedPrecondition {

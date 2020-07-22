@@ -1,11 +1,11 @@
-package provider
+package eventstore
 
 import (
-	"testing"
-	"github.com/stretchr/testify/assert"
 	"github.com/makkalot/eskit/generated/grpc/go/common"
 	"github.com/satori/go.uuid"
+	"github.com/stretchr/testify/assert"
 	"os"
+	"testing"
 
 	"github.com/golang/protobuf/proto"
 	store "github.com/makkalot/eskit/generated/grpc/go/eventstore"

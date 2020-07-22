@@ -1,21 +1,22 @@
 package main
 
 import (
-	"log"
+	"github.com/makkalot/eskit/services/lib/eventstore"
 	"google.golang.org/grpc"
+	"log"
 
-	store "github.com/makkalot/eskit/generated/grpc/go/eventstore"
-	provider2 "github.com/makkalot/eskit/services/eventstore/provider"
-	"github.com/grpc-ecosystem/go-grpc-prometheus"
-	"net/http"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"google.golang.org/grpc/reflection"
-	"github.com/go-ozzo/ozzo-validation"
-	"github.com/spf13/viper"
-	"net"
-	"io/ioutil"
 	"fmt"
 	"github.com/davecgh/go-spew/spew"
+	"github.com/go-ozzo/ozzo-validation"
+	"github.com/grpc-ecosystem/go-grpc-prometheus"
+	store "github.com/makkalot/eskit/generated/grpc/go/eventstore"
+	provider2 "github.com/makkalot/eskit/services/eventstore/provider"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/spf13/viper"
+	"google.golang.org/grpc/reflection"
+	"io/ioutil"
+	"net"
+	"net/http"
 )
 
 type EventStoreConfig struct {
@@ -77,7 +78,7 @@ func main() {
 	)
 	grpc_prometheus.EnableHandlingTimeHistogram()
 
-	var estore provider2.Store
+	var estore eventstore.Store
 
 	var dbUri string
 
@@ -88,9 +89,9 @@ func main() {
 	}
 
 	if dbUri == "inmemory://" {
-		estore = provider2.NewInMemoryStore()
+		estore = eventstore.NewInMemoryStore()
 	} else {
-		estore, err = provider2.NewSqlStore("postgres", dbUri)
+		estore, err = eventstore.NewSqlStore("postgres", dbUri)
 		if err != nil {
 			log.Fatalf("failed to create event store : %v", err)
 		}
