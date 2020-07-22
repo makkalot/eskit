@@ -106,6 +106,7 @@ deps: deps-go
 .PHONY: deps-go
 deps-go:
 	go get -v -u ./...
+	go mod tidy
 	go mod vendor
 
 
@@ -265,7 +266,8 @@ deploy-compose: clean-build build-compose-go
 # TEST targets will be here
 
 .PHONY: test
-test: build test-compose-go test-compose-py
+# test: build test-compose-go test-compose-py
+test: build test-compose-go
 
 .PHONY: test-compose-go
 test-compose-go:

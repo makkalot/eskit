@@ -2,22 +2,22 @@ package store
 
 import (
 	"context"
+	"github.com/golang/protobuf/proto"
+	common3 "github.com/makkalot/eskit/services/lib/common"
 	. "github.com/onsi/ginkgo"
-	"google.golang.org/grpc"
 	. "github.com/onsi/gomega"
 	"github.com/satori/go.uuid"
-	"github.com/golang/protobuf/proto"
+	"google.golang.org/grpc"
 
-	"github.com/makkalot/eskit/generated/grpc/go/users"
+	"fmt"
+	"github.com/davecgh/go-spew/spew"
+	"github.com/go-test/deep"
 	"github.com/makkalot/eskit/generated/grpc/go/common"
+	store "github.com/makkalot/eskit/generated/grpc/go/crudstore"
+	"github.com/makkalot/eskit/generated/grpc/go/users"
 	"github.com/makkalot/eskit/services/clients"
 	"github.com/makkalot/eskit/tests/integration/util"
-	store "github.com/makkalot/eskit/generated/grpc/go/crudstore"
 	"google.golang.org/grpc/codes"
-	"github.com/davecgh/go-spew/spew"
-	common2 "github.com/makkalot/eskit/services/common"
-	"fmt"
-	"github.com/go-test/deep"
 )
 
 var _ = Describe("Crud Store", func() {
@@ -64,7 +64,7 @@ var _ = Describe("Crud Store", func() {
 			})
 			Expect(err).To(BeNil())
 
-			err = common2.RetryNormal(func() error {
+			err = common3.RetryNormal(func() error {
 				types, err := crudStoreClient.ListTypes(ctx, &store.ListTypesRequest{})
 				if err != nil {
 					return err
@@ -123,7 +123,7 @@ var _ = Describe("Crud Store", func() {
 			})
 			Expect(err).To(BeNil())
 
-			err = common2.RetryNormal(func() error {
+			err = common3.RetryNormal(func() error {
 				types, err := crudStoreClient.ListTypes(ctx, &store.ListTypesRequest{})
 				if err != nil {
 					return err
@@ -172,7 +172,7 @@ var _ = Describe("Crud Store", func() {
 				Spec: crudSpec,
 			})
 
-			err = common2.RetryNormal(func() error {
+			err = common3.RetryNormal(func() error {
 				GinkgoT().Logf("pulling the types for updated indexes")
 				types, err := crudStoreClient.ListTypes(ctx, &store.ListTypesRequest{})
 				if err != nil {

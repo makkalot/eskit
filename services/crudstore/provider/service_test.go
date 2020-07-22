@@ -1,20 +1,21 @@
 package provider
 
 import (
-	"testing"
-	"github.com/stretchr/testify/assert"
-	"github.com/makkalot/eskit/services/clients"
 	"context"
-	crudstore "github.com/makkalot/eskit/generated/grpc/go/crudstore"
-	eventstore "github.com/makkalot/eskit/services/eventstore/provider"
-	"os"
-	"github.com/makkalot/eskit/generated/grpc/go/users"
-	"github.com/makkalot/eskit/generated/grpc/go/common"
-	"github.com/satori/go.uuid"
-	"github.com/golang/protobuf/proto"
-	"github.com/makkalot/eskit/tests/integration/util"
-	"google.golang.org/grpc/codes"
 	"github.com/go-test/deep"
+	"github.com/golang/protobuf/proto"
+	"github.com/makkalot/eskit/generated/grpc/go/common"
+	crudstore "github.com/makkalot/eskit/generated/grpc/go/crudstore"
+	"github.com/makkalot/eskit/generated/grpc/go/users"
+	"github.com/makkalot/eskit/services/clients"
+	crudstore2 "github.com/makkalot/eskit/services/lib/crudstore"
+	eventstore2 "github.com/makkalot/eskit/services/lib/eventstore"
+	"github.com/makkalot/eskit/tests/integration/util"
+	"github.com/satori/go.uuid"
+	"github.com/stretchr/testify/assert"
+	"google.golang.org/grpc/codes"
+	"os"
+	"testing"
 )
 
 func TestCrudStoreProvider_Health(t *testing.T) {
@@ -1202,7 +1203,7 @@ type unitClient struct {
 }
 
 func newUnitTestClient(t *testing.T) *unitClient {
-	eventStore := eventstore.NewInMemoryStore()
+	eventStore := eventstore2.NewInMemoryStore()
 	//eventStore, err := eventstore.NewInMemoryStore("sqlite3", "estore.db")
 	//assert.NoError(t, err)
 	assert.NotNil(t, eventStore)
@@ -1210,13 +1211,8 @@ func newUnitTestClient(t *testing.T) *unitClient {
 	//err = eventStore.Cleanup()
 	//assert.NoError(t, err)
 
-	eventStoreApi, err := eventstore.NewEventStoreApiProvider(eventStore)
-	assert.NoError(t, err)
-
-	eventStoreClient := clients.NewEventStoreServiceClientWithNoNetworking(eventStoreApi)
-
 	ctx := context.Background()
-	crudStore, err := NewCrudStoreProvider(ctx, eventStoreClient)
+	crudStore, err := crudstore2.NewCrudStoreProvider(ctx, eventStore)
 	assert.NoError(t, err)
 
 	api, err := NewCrudStoreApiProvider(crudStore)

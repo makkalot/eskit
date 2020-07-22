@@ -1,17 +1,17 @@
 package clients
 
 import (
+	"context"
+	"fmt"
 	"github.com/makkalot/eskit/generated/grpc/go/consumerstore"
 	"github.com/makkalot/eskit/generated/grpc/go/eventstore"
-	"context"
-	"io"
-	"fmt"
-	"log"
-	"google.golang.org/grpc/status"
-	"google.golang.org/grpc/codes"
-	"strconv"
+	common2 "github.com/makkalot/eskit/services/lib/common"
 	"google.golang.org/grpc"
-	"github.com/makkalot/eskit/services/common"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"io"
+	"log"
+	"strconv"
 	"strings"
 )
 
@@ -72,7 +72,7 @@ func (consumer *AppLogConsumer) Consume(cb ConsumeCB) error {
 				//log.Println("Saving progress for : ", entry.Event.Originator)
 				//log.Println("Saving progress for : ", entry.Id)
 
-				if err := common.RetryShort(func() error {
+				if err := common2.RetryShort(func() error {
 					return consumer.SaveProgress(entry.Id)
 				}); err != nil {
 					return err
@@ -185,7 +185,7 @@ func NewConsumerStoreGrpcClientWithWait(ctx context.Context, storeEndpoint strin
 	var conn *grpc.ClientConn
 	var storeClient consumerstore.ConsumerServiceClient
 
-	err := common.RetryNormal(func() error {
+	err := common2.RetryNormal(func() error {
 		var err error
 		conn, err = grpc.Dial(storeEndpoint, grpc.WithInsecure())
 		if err != nil {

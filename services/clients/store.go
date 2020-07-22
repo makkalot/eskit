@@ -2,10 +2,10 @@ package clients
 
 import (
 	"context"
-	store "github.com/makkalot/eskit/generated/grpc/go/eventstore"
-	"google.golang.org/grpc"
-	"github.com/makkalot/eskit/services/common"
 	"fmt"
+	store "github.com/makkalot/eskit/generated/grpc/go/eventstore"
+	common2 "github.com/makkalot/eskit/services/lib/common"
+	"google.golang.org/grpc"
 )
 
 // Creates a new EventstoreServiceClient but first waits for health endpoint to become ready
@@ -13,7 +13,7 @@ func NewStoreClientWithWait(ctx context.Context, storeEndpoint string) (store.Ev
 	var conn *grpc.ClientConn
 	var storeClient store.EventstoreServiceClient
 
-	err := common.RetryNormal(func() error {
+	err := common2.RetryNormal(func() error {
 		var err error
 		conn, err = grpc.Dial(storeEndpoint, grpc.WithInsecure())
 		if err != nil {
