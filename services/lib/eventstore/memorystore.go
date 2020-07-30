@@ -42,7 +42,7 @@ func (s *InMemoryStore) Append(event *store.Event) error {
 
 	if newVersionInt <= latestVersionInt {
 		//log.Println("current store is like : ", spew.Sdump(s.eventStore))
-		return &ErrDuplicate{msg: fmt.Sprintf("you apply version : %d but there's a newer version : %d for %s", newVersionInt, latestVersionInt, event.Originator.Id)}
+		return fmt.Errorf("you apply version : %d but there's a newer version : %d for %s: %w", newVersionInt, latestVersionInt, event.Originator.Id, ErrDuplicate)
 	}
 
 	s.eventStore[event.Originator.Id] = append(s.eventStore[event.Originator.Id], event)

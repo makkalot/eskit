@@ -1,7 +1,7 @@
 package eventstore
 
 import (
-	"fmt"
+	"errors"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 	"github.com/makkalot/eskit/generated/grpc/go/common"
@@ -28,13 +28,7 @@ var (
 		})
 )
 
-type ErrDuplicate struct {
-	msg string
-}
-
-func (e *ErrDuplicate) Error() string {
-	return fmt.Sprintf("duplicate error : %s", e.msg)
-}
+var ErrDuplicate = errors.New("duplicate")
 
 type Store interface {
 	Append(event *store.Event) error

@@ -19,6 +19,7 @@ import (
 
 type CrudStoreConfig struct {
 	DbUri              string `json:"dbUri" mapstructure:"dbUri"`
+	DbPassword         string `json:"dbPassword" mapstructure:"dbPassword"`
 	ListenAddr         string `json:"listenAddr" mapstructure:"listenAddr"`
 	EventStoreEndpoint string `json:"eventStoreEndpoint" mapstructure:"eventStoreEndpoint"`
 }
@@ -26,7 +27,6 @@ type CrudStoreConfig struct {
 func (c CrudStoreConfig) Validate() error {
 	return validation.ValidateStruct(&c,
 		validation.Field(&c.DbUri, validation.Required),
-		validation.Field(&c.EventStoreEndpoint, validation.Required),
 	)
 }
 
@@ -63,6 +63,12 @@ func main() {
 
 	var estore eventstore.Store
 	var dbUri string
+
+	if config.DbPassword != "" {
+		dbUri = config.DbUri + " password=" + config.DbPassword
+	} else {
+		dbUri = config.DbUri
+	}
 
 	if dbUri == "inmemory://" {
 		estore = eventstore.NewInMemoryStore()

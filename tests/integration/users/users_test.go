@@ -31,8 +31,6 @@ var _ = Describe("Users", func() {
 	})
 
 	Context("When User is Created", func() {
-		var userID, userID2 string
-
 		It("Should be returned via its ID", func() {
 
 			req := &users.CreateRequest{
@@ -44,15 +42,6 @@ var _ = Describe("Users", func() {
 
 			Expect(err).To(BeNil())
 			Expect(resp).NotTo(BeNil())
-			userID = resp.User.Originator.Id
-
-			req2 := &users.CreateRequest{
-				Email:     "osman@osman.com",
-				FirstName: "SameName",
-				LastName:  "Eskit",
-			}
-			resp2, err := userClient.Create(context.Background(), req2)
-			userID2 = resp2.User.Originator.Id
 
 			getResp, err := userClient.Get(context.Background(), &users.GetRequest{
 				Originator: &common.Originator{
@@ -65,6 +54,27 @@ var _ = Describe("Users", func() {
 			Expect(getResp.User.Email).To(Equal(req.Email))
 			Expect(getResp.User.FirstName).To(Equal(req.FirstName))
 			Expect(getResp.User.LastName).To(Equal(req.LastName))
+
+			req2 := &users.CreateRequest{
+				Email:     "osman@osman.com",
+				FirstName: "SameName",
+				LastName:  "Eskit",
+			}
+			resp2, err := userClient.Create(context.Background(), req2)
+			Expect(err).To(BeNil())
+			Expect(resp2).NotTo(BeNil())
+
+			getResp, err = userClient.Get(context.Background(), &users.GetRequest{
+				Originator: &common.Originator{
+					Id: resp2.User.Originator.Id,
+				},
+			})
+			Expect(err).To(BeNil())
+			Expect(getResp.User).NotTo(BeNil())
+
+			Expect(getResp.User.Email).To(Equal(req2.Email))
+			Expect(getResp.User.FirstName).To(Equal(req2.FirstName))
+			Expect(getResp.User.LastName).To(Equal(req2.LastName))
 
 		})
 	})
