@@ -1,7 +1,7 @@
 package eventstore
 
 import (
-	"fmt"
+	"errors"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 	"github.com/makkalot/eskit/generated/grpc/go/common"
@@ -28,16 +28,17 @@ var (
 		})
 )
 
-type ErrDuplicate struct {
-	msg string
-}
-
-func (e *ErrDuplicate) Error() string {
-	return fmt.Sprintf("duplicate error : %s", e.msg)
-}
+var ErrDuplicate = errors.New("duplicate")
 
 type Store interface {
 	Append(event *store.Event) error
 	Get(originator *common.Originator, fromVersion bool) ([]*store.Event, error)
 	Logs(fromID uint64, size uint32, pipelineID string) ([]*store.AppLogEntry, error)
+}
+
+// StoreWithCleanup has the same methods as Store but also has Cleanup method
+// it's useful when working in tests with the store
+type StoreWithCleanup interface {
+	Store
+	Cleanup() error
 }

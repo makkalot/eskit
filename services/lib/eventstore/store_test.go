@@ -33,11 +33,11 @@ func TestSqlStore(tm *testing.T) {
 		},
 	}
 
-	defer func() {
+	tm.Cleanup(func() {
 		if _, err := os.Stat("estore.db"); err == nil {
 			assert.NoError(tm, os.Remove("estore.db"))
 		}
-	}()
+	})
 
 	for _, tc := range testCases {
 		currentStore := tc.store

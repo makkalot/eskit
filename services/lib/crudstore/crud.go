@@ -15,21 +15,20 @@ import (
 )
 
 var (
-	RecordNotFound  = errors.New("not found")
-	RecordDeleted   = errors.New("deleted")
-	RecordDuplicate = errors.New("duplicate")
+	RecordNotFound = errors.New("not found")
+	RecordDeleted  = errors.New("deleted")
 )
 
 func IsErrNotFound(err error) bool {
-	return err == RecordNotFound
+	return errors.Is(err, RecordNotFound)
 }
 
 func IsErrDeleted(err error) bool {
-	return err == RecordDeleted
+	return errors.Is(err, RecordDeleted)
 }
 
 func IsDuplicate(err error) bool {
-	return err == RecordDuplicate
+	return errors.Is(err, eventstore.ErrDuplicate)
 }
 
 type CrudStore interface {
@@ -54,7 +53,7 @@ func NewCrudStoreProvider(ctx context.Context, estore eventstore.Store) (CrudSto
 
 func (crud *CrudStoreProvider) Create(entityType string, originator *common.Originator, payload string) error {
 	if originator == nil {
-		return fmt.Errorf("missing originator")
+		return fmt.Errorf("empty originator")
 	}
 
 	if originator.Version == "" {
@@ -69,14 +68,7 @@ func (crud *CrudStoreProvider) Create(entityType string, originator *common.Orig
 	}
 
 	//log.Printf("Appending Create Event : %s", spew.Sdump(event))
-	err := crud.estore.Append(event)
-	switch err.(type) {
-	case *eventstore.ErrDuplicate:
-		return RecordDuplicate
-	default:
-		return err
-
-	}
+	return crud.estore.Append(event)
 }
 
 func (crud *CrudStoreProvider) Update(entityType string, originator *common.Originator, payload string) (*common.Originator, error) {
@@ -112,13 +104,7 @@ func (crud *CrudStoreProvider) Update(entityType string, originator *common.Orig
 
 	err = crud.estore.Append(event)
 	if err != nil {
-
-		switch err.(type) {
-		case *eventstore.ErrDuplicate:
-			return nil, RecordDuplicate
-		default:
-			return nil, err
-		}
+		return nil, err
 	}
 	return newOriginator, nil
 }
@@ -130,12 +116,12 @@ func (crud *CrudStoreProvider) Get(originator *common.Originator, deleted bool) 
 	}
 
 	if events == nil || len(events) == 0 {
-		return "", nil, RecordNotFound
+		return "", nil, fmt.Errorf("%w", RecordNotFound)
 	}
 
 	latestEvent := events[len(events)-1]
 	if crud.isEventDeleted(latestEvent) && !deleted {
-		return "", nil, RecordDeleted
+		return "", nil, fmt.Errorf("%w", RecordDeleted)
 	}
 
 	currentPayload := []byte(events[0].Payload)
@@ -150,7 +136,7 @@ func (crud *CrudStoreProvider) Get(originator *common.Originator, deleted bool) 
 
 		// the version we're looking for is not created yet
 		if int(originatorVersionInt) > len(events) {
-			return "", nil, RecordNotFound
+			return "", nil, fmt.Errorf("%w", RecordNotFound)
 		}
 	}
 

@@ -13,11 +13,18 @@ type InMemoryStore struct {
 	logs       []*store.AppLogEntry
 }
 
-func NewInMemoryStore() Store {
+func NewInMemoryStore() StoreWithCleanup {
 	return &InMemoryStore{
 		eventStore: map[string][]*store.Event{},
 		logs:       []*store.AppLogEntry{},
 	}
+}
+
+// Cleanup resets the db
+func (s *InMemoryStore) Cleanup() error {
+	s.eventStore = map[string][]*store.Event{}
+	s.logs = []*store.AppLogEntry{}
+	return nil
 }
 
 func (s *InMemoryStore) Append(event *store.Event) error {
@@ -42,7 +49,7 @@ func (s *InMemoryStore) Append(event *store.Event) error {
 
 	if newVersionInt <= latestVersionInt {
 		//log.Println("current store is like : ", spew.Sdump(s.eventStore))
-		return &ErrDuplicate{msg: fmt.Sprintf("you apply version : %d but there's a newer version : %d for %s", newVersionInt, latestVersionInt, event.Originator.Id)}
+		return fmt.Errorf("you apply version : %d, db version is : %d for %s: %w", newVersionInt, latestVersionInt, event.Originator.Id, ErrDuplicate)
 	}
 
 	s.eventStore[event.Originator.Id] = append(s.eventStore[event.Originator.Id], event)

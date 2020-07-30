@@ -4,7 +4,7 @@ import (
 	"context"
 	"github.com/makkalot/eskit/generated/grpc/go/common"
 	"github.com/makkalot/eskit/generated/grpc/go/users"
-	common3 "github.com/makkalot/eskit/services/lib/common"
+	eskitcommon "github.com/makkalot/eskit/services/lib/common"
 
 	"github.com/makkalot/eskit/services/clients"
 
@@ -24,7 +24,7 @@ func NewUserServiceProvider(crudStoreEndpoint string) (*UserServiceProvider, err
 	ctx := context.Background()
 	var crudConn *grpc.ClientConn
 
-	if err := common3.RetryNormal(func() error {
+	if err := eskitcommon.RetryNormal(func() error {
 		var err error
 		crudConn, err = grpc.Dial(crudStoreEndpoint, grpc.WithInsecure())
 		if err != nil {

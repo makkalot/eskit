@@ -19,6 +19,8 @@ HELM_IMAGE_NAME=$(REPOSITORY_NAME)/eskit-helm:latest
 KUBECONFIG_DIR=/tmp/kube
 KUBECONFIG_PATH=/tmp/kube/config
 
+COMPOSE_FILE=docker-compose-unit.yml
+
 ifndef CI
 	KUBECONFIG_DIR=/tmp/kube
 	KUBECONFIG_PATH=/tmp/kube/config
@@ -271,6 +273,7 @@ test: build test-compose-go
 
 .PHONY: test-compose-go
 test-compose-go:
+	export COMPOSE_FILE=$(COMPOSE_FILE); \
 	$(COMMON_SH) source ./scripts/compose.sh && compose_tests_golang $(CI_JOB_ID)
 
 .PHONY: test-compose-py
@@ -299,7 +302,7 @@ test-go: test-go-unit
 
 .PHONY: test-go-unit
 test-go-unit:
-	cd services && go test -v ./...
+	cd services && go test -count=1 -v ./...
 
 .PHONY: test-go-integration
 test-go-integration:

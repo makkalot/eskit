@@ -200,9 +200,10 @@ func (svc *CrudStoreSvcProvider) List(ctx context.Context, req *crudstore.ListRe
 
 	var results []*crudstore.ListResponseItem
 	skipPayload := req.SkipPayload
+	var latestOriginator *common.Originator
 	for _, o := range originators {
 		var payload string
-		var latestOriginator *common.Originator
+
 
 		if !skipPayload {
 			p, originator, err := svc.storage.Get(o, false)

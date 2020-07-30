@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"github.com/makkalot/eskit/generated/grpc/go/common"
 	store "github.com/makkalot/eskit/generated/grpc/go/eventstore"
 	eskitcommon "github.com/makkalot/eskit/services/lib/common"
@@ -50,7 +51,7 @@ func (svc *EventStoreProvider) Append(ctx context.Context, request *store.Append
 
 	if err := svc.estore.Append(event); err != nil {
 		log.Println("append failed : ", err)
-		if _, ok := err.(*eventstore.ErrDuplicate); ok {
+		if errors.Is(err, eventstore.ErrDuplicate) {
 			return nil, status.Errorf(codes.AlreadyExists, "append : %v", err)
 		}
 		return nil, status.Errorf(codes.Internal, "append : %v", err)

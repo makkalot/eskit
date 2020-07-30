@@ -126,7 +126,7 @@ func (estore *SqlStore) Append(event *store.Event) error {
 	if err := tx.Create(storedEvent).Error; err != nil {
 		tx.Rollback()
 		if strings.Contains(strings.ToLower(err.Error()), "unique") {
-			return &ErrDuplicate{msg: "stored_event"}
+			return fmt.Errorf("stored_event: %w", ErrDuplicate)
 		}
 		return fmt.Errorf("inserting stored event : %v", err)
 	}
@@ -135,7 +135,7 @@ func (estore *SqlStore) Append(event *store.Event) error {
 	if err := result.Error; err != nil {
 		tx.Rollback()
 		if strings.Contains(strings.ToLower(err.Error()), "unique") {
-			return &ErrDuplicate{msg: "stored_log_entry"}
+			return fmt.Errorf("stored_log_entry: %w", ErrDuplicate)
 		}
 		return fmt.Errorf("inserting stored log entry: %v", err)
 	} else {

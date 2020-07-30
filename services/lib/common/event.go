@@ -1,11 +1,11 @@
 package common
 
 import (
-	"strings"
-	store "github.com/makkalot/eskit/generated/grpc/go/eventstore"
-	"github.com/makkalot/eskit/generated/grpc/go/common"
 	"fmt"
+	"github.com/makkalot/eskit/generated/grpc/go/common"
+	store "github.com/makkalot/eskit/generated/grpc/go/eventstore"
 	"strconv"
+	"strings"
 )
 
 func IncrStringInt(s string) (string, error) {
@@ -16,6 +16,14 @@ func IncrStringInt(s string) (string, error) {
 
 	versionInt++
 	return strconv.Itoa(int(versionInt)), nil
+}
+
+func MustIncrStringInt(s string) string {
+	newVersion, err := IncrStringInt(s)
+	if err != nil {
+		panic(fmt.Sprintf("incrementing version failed : %v", err))
+	}
+	return newVersion
 }
 
 func IncrOriginator(originator *common.Originator) (*common.Originator, error) {
