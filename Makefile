@@ -299,7 +299,7 @@ test-go: test-go-unit test-go-integration
 
 .PHONY: test-go-unit
 test-go-unit:
-	cd services && go test -v ./...
+	cd services && go test -count=1 -v ./...
 
 .PHONY: test-go-integration
 test-go-integration:

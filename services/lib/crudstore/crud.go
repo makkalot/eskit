@@ -53,7 +53,7 @@ func NewCrudStoreProvider(ctx context.Context, estore eventstore.Store) (CrudSto
 
 func (crud *CrudStoreProvider) Create(entityType string, originator *common.Originator, payload string) error {
 	if originator == nil {
-		return fmt.Errorf("missing originator")
+		return fmt.Errorf("empty originator")
 	}
 
 	if originator.Version == "" {

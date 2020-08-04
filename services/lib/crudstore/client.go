@@ -2,10 +2,16 @@ package crudstore
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/makkalot/eskit/generated/grpc/go/common"
+	uuid "github.com/satori/go.uuid"
 	"log"
 	"reflect"
+)
+
+var (
+	InvalidArgumentError = errors.New("invalid argument")
 )
 
 type StructCrudStoreClient struct {
@@ -21,7 +27,7 @@ func (client *StructCrudStoreClient) checkIfPtr(msg interface{}) error {
 	if t.Kind() == reflect.Ptr {
 		return nil
 	}
-	return fmt.Errorf("struct needs to be pointer")
+	return fmt.Errorf("non pointer : %w", InvalidArgumentError)
 }
 
 // Create creates a new entry into crudstore for the given struct, it uses its structname for
@@ -38,8 +44,14 @@ func (client *StructCrudStoreClient) Create(msg interface{}) (*common.Originator
 		originator = o
 	}
 
-	entityType := EntityTypeFromStruct(msg)
+	if originator == nil {
+		originator = &common.Originator{
+			Id:      uuid.Must(uuid.NewV4()).String(),
+			Version: "1",
+		}
+	}
 
+	entityType := EntityTypeFromStruct(msg)
 	payloadJSON, err := json.Marshal(msg)
 	if err != nil {
 		return nil, err
@@ -51,6 +63,34 @@ func (client *StructCrudStoreClient) Create(msg interface{}) (*common.Originator
 	}
 
 	return originator, nil
+}
+
+func (client *StructCrudStoreClient) Get(originator *common.Originator, msg interface{}, deleted bool) error {
+	if originator == nil {
+		return fmt.Errorf("empty originator : %w", InvalidArgumentError)
+	}
+
+	if err := client.checkIfPtr(msg); err != nil {
+		return err
+	}
+
+	payload, originator, err := client.crudStore.Get(
+		originator,
+		deleted, )
+
+	if err != nil {
+		return err
+	}
+
+	if err := json.Unmarshal([]byte(payload), msg); err != nil {
+		return fmt.Errorf("restoring the payload : %w", err)
+	}
+
+	if err := client.setOriginatorForMsg(msg, originator); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // continue with the update and the other ones....
@@ -159,6 +199,9 @@ func (client *StructCrudStoreClient) ListWithPagination(result interface{}, from
 		i++
 	}
 	resultv.Elem().Set(slicev.Slice(0, i))
+	if latestOriginator == nil {
+		return "", nil
+	}
 	return latestOriginator.Id, nil
 }
 

@@ -117,7 +117,7 @@ func (crud *CrudStoreClient) Create(msg proto.Message) (*common.Originator, erro
 	return createResp.Originator, nil
 }
 
-func (crud *CrudStoreClient) Get(originator *common.Originator, msg proto.Message, deleted bool) (error) {
+func (crud *CrudStoreClient) Get(originator *common.Originator, msg proto.Message, deleted bool) error {
 	if originator == nil {
 		return fmt.Errorf("empty originator")
 	}
