@@ -18,7 +18,4 @@ jobs:
         run: make build-compose-go
       - name: Test Go Services
         run: make test-compose-go
-      - name: Test Python Services
-        run: make test-compose-py
-
 

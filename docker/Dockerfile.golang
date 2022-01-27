@@ -1,8 +1,6 @@
-FROM golang:1.10.1-stretch
+FROM golang:1.17-stretch
 
 RUN apt-get update && apt-get install -y curl
 
-RUN curl https://glide.sh/get | sh
-
-RUN go get github.com/onsi/ginkgo/ginkgo && \
-    go get github.com/onsi/gomega
+RUN go get github.com/onsi/ginkgo@v1.16.5 && \
+    go get github.com/onsi/gomega@v1.18.0
