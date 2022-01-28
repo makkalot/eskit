@@ -293,7 +293,7 @@ test-minikube-wait-svc:
 	done
 
 .PHONY: test-go
-test-go: test-go-unit test-go-integration
+test-go: test-go-unit
 
 .PHONY: test-go-unit
 test-go-unit:
