@@ -1,13 +1,10 @@
 ---
-
 name: Build and Test Pull Requests
-
 
 on:
   pull_request:
     branches:
       - master
-
 
 jobs:
   build:
@@ -18,4 +15,5 @@ jobs:
         run: make build-compose-go
       - name: Test Go Services
         run: make test-compose-go
+
 
