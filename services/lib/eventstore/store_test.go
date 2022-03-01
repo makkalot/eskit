@@ -1,11 +1,11 @@
-package provider
+package eventstore
 
 import (
-	"testing"
-	"github.com/stretchr/testify/assert"
 	"github.com/makkalot/eskit/generated/grpc/go/common"
 	"github.com/satori/go.uuid"
+	"github.com/stretchr/testify/assert"
 	"os"
+	"testing"
 
 	"github.com/golang/protobuf/proto"
 	store "github.com/makkalot/eskit/generated/grpc/go/eventstore"
@@ -33,11 +33,11 @@ func TestSqlStore(tm *testing.T) {
 		},
 	}
 
-	defer func() {
+	tm.Cleanup(func() {
 		if _, err := os.Stat("estore.db"); err == nil {
 			assert.NoError(tm, os.Remove("estore.db"))
 		}
-	}()
+	})
 
 	for _, tc := range testCases {
 		currentStore := tc.store

@@ -1,0 +1,35 @@
+version: '3'
+services:
+
+  gobuild:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.golang
+    volumes:
+      - ".:/go/src/github.com/makkalot/eskit"
+    working_dir: "/go/src/github.com/makkalot/eskit"
+    command: "make build-go"
+
+  db:
+    image: postgres
+    restart: always
+    environment:
+      - POSTGRES_PASSWORD=t00r
+      - POSTGRES_DB=eventsourcing
+    ports:
+      - "5432:5432"
+
+  gotest:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.golang
+    volumes:
+      - ".:/go/src/github.com/makkalot/eskit"
+    working_dir: "/go/src/github.com/makkalot/eskit"
+    command: "make test-go-unit"
+    environment:
+      - DB_URI=host=db port=5432 user=postgres dbname=eventsourcing password=t00r sslmode=disable
+    links:
+      - db
+
+

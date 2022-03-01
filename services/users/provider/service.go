@@ -2,18 +2,18 @@ package provider
 
 import (
 	"context"
-	"github.com/makkalot/eskit/generated/grpc/go/users"
 	"github.com/makkalot/eskit/generated/grpc/go/common"
+	"github.com/makkalot/eskit/generated/grpc/go/users"
+	eskitcommon "github.com/makkalot/eskit/services/lib/common"
 
 	"github.com/makkalot/eskit/services/clients"
 
-	"google.golang.org/grpc/status"
-	"google.golang.org/grpc/codes"
-	"github.com/satori/go.uuid"
-	"github.com/makkalot/eskit/generated/grpc/go/crudstore"
-	"google.golang.org/grpc"
-	common2 "github.com/makkalot/eskit/services/common"
 	"fmt"
+	"github.com/makkalot/eskit/generated/grpc/go/crudstore"
+	"github.com/satori/go.uuid"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type UserServiceProvider struct {
@@ -24,7 +24,7 @@ func NewUserServiceProvider(crudStoreEndpoint string) (*UserServiceProvider, err
 	ctx := context.Background()
 	var crudConn *grpc.ClientConn
 
-	if err := common2.RetryNormal(func() error {
+	if err := eskitcommon.RetryNormal(func() error {
 		var err error
 		crudConn, err = grpc.Dial(crudStoreEndpoint, grpc.WithInsecure())
 		if err != nil {

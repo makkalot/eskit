@@ -1,52 +1,19 @@
-package provider
+package eventstore
 
 import (
-	store "github.com/makkalot/eskit/generated/grpc/go/eventstore"
-	"github.com/makkalot/eskit/generated/grpc/go/common"
-	"time"
-	"github.com/jinzhu/gorm"
-	_ "github.com/jinzhu/gorm/dialects/sqlite"
-	_ "github.com/jinzhu/gorm/dialects/postgres"
-	"fmt"
-	commonutil "github.com/makkalot/eskit/services/common"
 	"encoding/json"
+	"fmt"
+	"github.com/jinzhu/gorm"
+	_ "github.com/jinzhu/gorm/dialects/postgres"
+	_ "github.com/jinzhu/gorm/dialects/sqlite"
+	"github.com/makkalot/eskit/generated/grpc/go/common"
+	store "github.com/makkalot/eskit/generated/grpc/go/eventstore"
+	eskitcommon "github.com/makkalot/eskit/services/lib/common"
+	"github.com/prometheus/client_golang/prometheus"
 	"strconv"
 	"strings"
-	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/prometheus/client_golang/prometheus"
+	"time"
 )
-
-var (
-	lastStreamID = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "eskit_events_stream_last_id",
-			Help: "LastID in the stream",
-		}, []string{
-			"application_id", "partition_id",
-		})
-
-	streamCounter = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "eskit_events_stream_count",
-			Help: "Stream Count",
-		}, []string{
-			"application_id", "partition_id",
-		})
-)
-
-type ErrDuplicate struct {
-	msg string
-}
-
-func (e *ErrDuplicate) Error() string {
-	return fmt.Sprintf("duplicate error : %s", e.msg)
-}
-
-type Store interface {
-	Append(event *store.Event) error
-	Get(originator *common.Originator, fromVersion bool) ([]*store.Event, error)
-	Logs(fromID uint64, size uint32, pipelineID string) ([]*store.AppLogEntry, error)
-}
 
 type StoredEvent struct {
 	OriginatorID      string `gorm:"primary_key; not null"`
@@ -72,7 +39,7 @@ type SqlStore struct {
 func NewSqlStore(dialect string, dbURI string) (*SqlStore, error) {
 	var db *gorm.DB
 
-	err := commonutil.RetryNormal(func() error {
+	err := eskitcommon.RetryNormal(func() error {
 		var err error
 		db, err = gorm.Open(dialect, dbURI)
 		if err != nil {
@@ -134,7 +101,7 @@ func (estore *SqlStore) Append(event *store.Event) error {
 
 	//log.Println("stored event : ", spew.Sdump(storedEvent))
 
-	entityType := commonutil.ExtractEntityType(event)
+	entityType := eskitcommon.ExtractEntityType(event)
 	jsonEvent, err := json.Marshal(event)
 	if err != nil {
 		return err
@@ -159,7 +126,7 @@ func (estore *SqlStore) Append(event *store.Event) error {
 	if err := tx.Create(storedEvent).Error; err != nil {
 		tx.Rollback()
 		if strings.Contains(strings.ToLower(err.Error()), "unique") {
-			return &ErrDuplicate{msg: "stored_event"}
+			return fmt.Errorf("stored_event: %w", ErrDuplicate)
 		}
 		return fmt.Errorf("inserting stored event : %v", err)
 	}
@@ -168,7 +135,7 @@ func (estore *SqlStore) Append(event *store.Event) error {
 	if err := result.Error; err != nil {
 		tx.Rollback()
 		if strings.Contains(strings.ToLower(err.Error()), "unique") {
-			return &ErrDuplicate{msg: "stored_log_entry"}
+			return fmt.Errorf("stored_log_entry: %w", ErrDuplicate)
 		}
 		return fmt.Errorf("inserting stored log entry: %v", err)
 	} else {
@@ -242,146 +209,4 @@ func (estore *SqlStore) Logs(fromID uint64, size uint32, pipelineID string) ([]*
 	}
 
 	return logs, nil
-}
-
-type InMemoryStore struct {
-	eventStore map[string][]*store.Event
-	logs       []*store.AppLogEntry
-}
-
-func NewInMemoryStore() Store {
-	return &InMemoryStore{
-		eventStore: map[string][]*store.Event{},
-		logs:       []*store.AppLogEntry{},
-	}
-}
-
-func (s *InMemoryStore) Append(event *store.Event) error {
-	if s.eventStore[event.Originator.Id] == nil {
-		s.eventStore[event.Originator.Id] = []*store.Event{event}
-		return s.appendLog(event)
-	}
-
-	events := s.eventStore[event.Originator.Id]
-	latestEvent := events[len(events)-1]
-	latestVersion := latestEvent.Originator.Version
-	latestVersionInt, err := strconv.ParseInt(latestVersion, 10, 64)
-	if err != nil {
-		return err
-	}
-
-	newVersion := event.Originator.Version
-	newVersionInt, err := strconv.ParseInt(newVersion, 10, 64)
-	if err != nil {
-		return err
-	}
-
-	if newVersionInt <= latestVersionInt {
-		//log.Println("current store is like : ", spew.Sdump(s.eventStore))
-		return &ErrDuplicate{msg: fmt.Sprintf("you apply version : %d but there's a newer version : %d for %s", newVersionInt, latestVersionInt, event.Originator.Id)}
-	}
-
-	s.eventStore[event.Originator.Id] = append(s.eventStore[event.Originator.Id], event)
-
-	return s.appendLog(event)
-}
-
-func (s *InMemoryStore) appendLog(event *store.Event) error {
-	var latestID string
-	if len(s.logs) == 0 {
-		latestID = "1"
-	} else {
-		latestLog := s.logs[len(s.logs)-1]
-		latestIDInt, err := strconv.ParseInt(latestLog.Id, 10, 64)
-		if err != nil {
-			return err
-		}
-		latestIDInt++
-		latestID = strconv.Itoa(int(latestIDInt))
-	}
-
-	s.logs = append(s.logs, &store.AppLogEntry{
-		Id:    latestID,
-		Event: event,
-	})
-
-	return nil
-}
-
-func (s *InMemoryStore) Get(originator *common.Originator, fromVersion bool) ([]*store.Event, error) {
-	//log.Println("event store : ", spew.Sdump(s.eventStore))
-
-	events := s.eventStore[originator.Id]
-	if events == nil || len(events) == 0 {
-		return []*store.Event{}, nil
-	}
-
-	eventVersion := originator.Version
-	if eventVersion == "" {
-		return events, nil
-	}
-
-	eventVersionInt, err := strconv.ParseInt(eventVersion, 10, 64)
-	if err != nil {
-		return nil, err
-	}
-
-	var results []*store.Event
-	for _, e := range events {
-		currentOriginator := e.Originator
-		currentVersion := currentOriginator.Version
-		currentVersionInt, err := strconv.ParseInt(currentVersion, 10, 64)
-		if err != nil {
-			return nil, err
-		}
-
-		if !fromVersion {
-			if currentVersionInt <= eventVersionInt {
-				results = append(results, e)
-			}
-		} else {
-			if currentVersionInt >= eventVersionInt {
-				results = append(results, e)
-			}
-		}
-	}
-
-	return results, nil
-}
-
-func (s *InMemoryStore) Logs(fromID uint64, size uint32, pipelineID string) ([]*store.AppLogEntry, error) {
-	if s.logs == nil || len(s.logs) == 0 {
-		return []*store.AppLogEntry{}, nil
-	}
-
-	if len(s.logs)-int(fromID) < 0 {
-		return []*store.AppLogEntry{}, nil
-	}
-
-	//log.Println("fetching : ")
-	if fromID > 0 {
-		fromID--
-	}
-
-	var results []*store.AppLogEntry
-	//log.Println("logs : ", spew.Sdump(s.logs))
-	if len(s.logs)-int(fromID) > int(size) {
-		//log.Printf("fetching : %d:%d\n", int(fromID), int(fromID)+int(size))
-		results = s.logs[fromID : int(fromID)+int(size)]
-	} else {
-		results = s.logs[fromID:]
-	}
-
-	if pipelineID == "" {
-		return results, nil
-	}
-
-	var finalResults []*store.AppLogEntry
-	for _, r := range results {
-		if commonutil.ExtractEntityType(r.Event) == pipelineID {
-			finalResults = append(finalResults, r)
-		}
-	}
-
-	return finalResults, nil
 }

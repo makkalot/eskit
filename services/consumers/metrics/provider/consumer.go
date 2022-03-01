@@ -1,15 +1,15 @@
 package provider
 
 import (
-	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/prometheus/client_golang/prometheus"
+	"context"
 	"github.com/makkalot/eskit/generated/grpc/go/crudstore"
 	"github.com/makkalot/eskit/generated/grpc/go/eventstore"
-	"github.com/makkalot/eskit/services/common"
-	"net/http"
+	common2 "github.com/makkalot/eskit/services/lib/common"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"net/http"
 	"strings"
-	"context"
 )
 
 type eventAction string
@@ -57,8 +57,8 @@ func NewPrometheusMetricsConsumer(ctx context.Context, crudGRPC crudstore.CrudSt
 
 func (consumer *PrometheusMetricsConsumer) ConsumerCB(entry *eventstore.AppLogEntry) error {
 	//log.Println("Consuming Metrics event : ", entry.Event.EventType)
-	entityType := common.ExtractEntityType(entry.Event)
-	eventType := common.ExtractEventType(entry.Event)
+	entityType := common2.ExtractEntityType(entry.Event)
+	eventType := common2.ExtractEventType(entry.Event)
 
 	eventsCounter := eventStoreEvents.With(prometheus.Labels{"entity_type": entityType, "event_type": eventType})
 	eventsCounter.Inc()
@@ -72,9 +72,9 @@ func (consumer *PrometheusMetricsConsumer) ConsumerCB(entry *eventstore.AppLogEn
 }
 
 func (consumer *PrometheusMetricsConsumer) isCrudEvent(event *eventstore.Event) bool {
-	eventType := common.ExtractEventType(event)
+	eventType := common2.ExtractEventType(event)
 	eventType = strings.ToLower(eventType)
-	entityType := common.ExtractEntityType(event)
+	entityType := common2.ExtractEntityType(event)
 
 	switch eventAction(eventType) {
 	case created, updated, deleted:

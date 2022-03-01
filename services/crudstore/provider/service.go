@@ -1,25 +1,26 @@
 package provider
 
 import (
-	"github.com/makkalot/eskit/generated/grpc/go/crudstore"
 	"context"
-	"google.golang.org/grpc/status"
-	"google.golang.org/grpc/codes"
-	"github.com/makkalot/eskit/generated/grpc/go/common"
-	"github.com/satori/go.uuid"
 	"fmt"
+	"github.com/makkalot/eskit/generated/grpc/go/common"
+	"github.com/makkalot/eskit/generated/grpc/go/crudstore"
+	eskitcommon "github.com/makkalot/eskit/services/lib/common"
+	crud "github.com/makkalot/eskit/services/lib/crudstore"
+	"github.com/satori/go.uuid"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/xeipuuv/gojsonschema"
 	"log"
-	common2 "github.com/makkalot/eskit/services/common"
 )
 
 type CrudStoreSvcProvider struct {
-	storage CrudStore
+	storage crud.CrudStore
 }
 
-func NewCrudStoreApiProvider(storage CrudStore) (crudstore.CrudStoreServiceServer, error) {
+func NewCrudStoreApiProvider(storage crud.CrudStore) (crudstore.CrudStoreServiceServer, error) {
 	return &CrudStoreSvcProvider{
 		storage: storage,
 	}, nil
@@ -74,7 +75,7 @@ func (svc *CrudStoreSvcProvider) Create(ctx context.Context, req *crudstore.Crea
 
 	err := svc.storage.Create(req.EntityType, originator, req.Payload)
 	if err != nil {
-		if IsDuplicare(err) {
+		if crud.IsDuplicate(err) {
 			return nil, status.Errorf(codes.AlreadyExists, "duplicate")
 		}
 		return nil, status.Errorf(codes.Internal, "creation failed : %v", err)
@@ -103,7 +104,7 @@ func (svc *CrudStoreSvcProvider) Update(ctx context.Context, req *crudstore.Upda
 
 	updatedOriginator, err := svc.storage.Update(req.EntityType, originator, req.Payload)
 	if err != nil {
-		if IsDuplicare(err) {
+		if crud.IsDuplicate(err) {
 			return nil, status.Errorf(codes.AlreadyExists, "update failed old version : %v", err)
 		}
 		return nil, status.Errorf(codes.Internal, "update failed : %v", err)
@@ -159,7 +160,7 @@ func (svc *CrudStoreSvcProvider) Get(ctx context.Context, req *crudstore.GetRequ
 
 	payload, originator, err := svc.storage.Get(req.Originator, req.Deleted)
 	if err != nil {
-		if IsErrDeleted(err) || IsErrNotFound(err) {
+		if crud.IsErrDeleted(err) || crud.IsErrNotFound(err) {
 			return nil, status.Errorf(codes.NotFound, "not found: %v", err)
 		}
 		return nil, status.Errorf(codes.Internal, "getting entity failed : %v", err)
@@ -199,9 +200,10 @@ func (svc *CrudStoreSvcProvider) List(ctx context.Context, req *crudstore.ListRe
 
 	var results []*crudstore.ListResponseItem
 	skipPayload := req.SkipPayload
+	var latestOriginator *common.Originator
 	for _, o := range originators {
 		var payload string
-		var latestOriginator *common.Originator
+
 
 		if !skipPayload {
 			p, originator, err := svc.storage.Get(o, false)
@@ -243,7 +245,7 @@ func (svc *CrudStoreSvcProvider) RegisterType(ctx context.Context, req *crudstor
 	existingSpec, _, err := svc.getSpecForEntity(&common.Originator{
 		Id: spec.EntityType,
 	})
-	if err != nil && !IsErrNotFound(err) {
+	if err != nil && !crud.IsErrNotFound(err) {
 		return nil, status.Errorf(codes.Internal, "fetching spec failed : %v", err)
 	}
 
@@ -272,7 +274,7 @@ func (svc *CrudStoreSvcProvider) RegisterType(ctx context.Context, req *crudstor
 	}
 	log.Println("Registering type with originator ", originator)
 
-	err = svc.storage.Create(common2.RegisterTypeEntity, originator, specJSON)
+	err = svc.storage.Create(eskitcommon.RegisterTypeEntity, originator, specJSON)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "saving failed : %v", err)
 	}
@@ -305,7 +307,7 @@ func (svc *CrudStoreSvcProvider) getSpecForEntity(originator *common.Originator)
 
 	payload, originator, err := svc.storage.Get(originator, false)
 	if err != nil {
-		if IsErrNotFound(err) {
+		if crud.IsErrNotFound(err) {
 			return nil, nil, nil
 		}
 		return nil, nil, err
@@ -375,7 +377,7 @@ func (svc *CrudStoreSvcProvider) UpdateType(ctx context.Context, req *crudstore.
 		return nil, status.Errorf(codes.InvalidArgument, "marshal : %v", err)
 	}
 
-	_, err = svc.storage.Update(common2.RegisterTypeEntity, originator, specJSON)
+	_, err = svc.storage.Update(eskitcommon.RegisterTypeEntity, originator, specJSON)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "saving type : %v", err)
 	}
@@ -389,7 +391,7 @@ func (svc *CrudStoreSvcProvider) ListTypes(ctx context.Context, req *crudstore.L
 	if req.Limit != 0 {
 		size = int(req.Limit)
 	}
-	originators, _, err := svc.storage.List(common2.RegisterTypeEntity, "0", size)
+	originators, _, err := svc.storage.List(eskitcommon.RegisterTypeEntity, "0", size)
 	if err != nil {
 		return nil, err
 	}
