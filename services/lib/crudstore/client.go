@@ -1,10 +1,12 @@
 package crudstore
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/makkalot/eskit/generated/grpc/go/common"
+	"github.com/makkalot/eskit/services/lib/eventstore"
 	uuid "github.com/satori/go.uuid"
 	"log"
 	"reflect"
@@ -14,15 +16,44 @@ var (
 	InvalidArgumentError = errors.New("invalid argument")
 )
 
-type StructCrudStoreClient struct {
+type Client interface {
+	Create(msg interface{}) (*common.Originator, error)
+	Get(originator *common.Originator, msg interface{}, deleted bool) error
+	Update(msg interface{}) (*common.Originator, error)
+	Delete(originator *common.Originator, msg interface{}) (*common.Originator, error)
+	ListWithPagination(result interface{}, fromID string, size int) (string, error)
+}
+
+type clientProvider struct {
 	crudStore CrudStore
 }
 
-func NewStructCrudStoreClient(crudStore CrudStore) *StructCrudStoreClient {
-	return &StructCrudStoreClient{crudStore: crudStore}
+func NewClient(ctx context.Context, dbUri string) (*clientProvider, error) {
+	var estore eventstore.Store
+	var err error
+
+	if dbUri == "inmemory://" {
+		estore = eventstore.NewInMemoryStore()
+	} else {
+		estore, err = eventstore.NewSqlStore("postgres", dbUri)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create event store : %v", err)
+		}
+	}
+
+	crudStore, err := NewCrudStoreProvider(ctx, estore)
+	if err != nil {
+		return nil, fmt.Errorf("creating crud store failed : %v", err)
+	}
+
+	return NewClientWithStore(crudStore), nil
 }
 
-func (client *StructCrudStoreClient) checkIfPtr(msg interface{}) error {
+func NewClientWithStore(crudStore CrudStore) *clientProvider {
+	return &clientProvider{crudStore: crudStore}
+}
+
+func (client *clientProvider) checkIfPtr(msg interface{}) error {
 	t := reflect.TypeOf(msg)
 	if t.Kind() == reflect.Ptr {
 		return nil
@@ -32,7 +63,7 @@ func (client *StructCrudStoreClient) checkIfPtr(msg interface{}) error {
 
 // Create creates a new entry into crudstore for the given struct, it uses its structname for
 // entity type for now
-func (client *StructCrudStoreClient) Create(msg interface{}) (*common.Originator, error) {
+func (client *clientProvider) Create(msg interface{}) (*common.Originator, error) {
 	var originator *common.Originator
 
 	if err := client.checkIfPtr(msg); err != nil {
@@ -69,7 +100,7 @@ func (client *StructCrudStoreClient) Create(msg interface{}) (*common.Originator
 	return originator, nil
 }
 
-func (client *StructCrudStoreClient) Get(originator *common.Originator, msg interface{}, deleted bool) error {
+func (client *clientProvider) Get(originator *common.Originator, msg interface{}, deleted bool) error {
 	if originator == nil {
 		return fmt.Errorf("empty originator : %w", InvalidArgumentError)
 	}
@@ -98,7 +129,7 @@ func (client *StructCrudStoreClient) Get(originator *common.Originator, msg inte
 }
 
 // Update updates the object, it should have the originator set
-func (client *StructCrudStoreClient) Update(msg interface{}) (*common.Originator, error) {
+func (client *clientProvider) Update(msg interface{}) (*common.Originator, error) {
 	var originator *common.Originator
 	var ok bool
 
@@ -134,7 +165,7 @@ func (client *StructCrudStoreClient) Update(msg interface{}) (*common.Originator
 	return updatedOriginator, nil
 }
 
-func (client *StructCrudStoreClient) Delete(originator *common.Originator, msg interface{}) (*common.Originator, error) {
+func (client *clientProvider) Delete(originator *common.Originator, msg interface{}) (*common.Originator, error) {
 	if originator == nil {
 		return nil, fmt.Errorf("empty originator")
 	}
@@ -151,7 +182,7 @@ func (client *StructCrudStoreClient) Delete(originator *common.Originator, msg i
 	return deletedOriginator, nil
 }
 
-func (client *StructCrudStoreClient) ListWithPagination(result interface{}, fromID string, size int) (string, error) {
+func (client *clientProvider) ListWithPagination(result interface{}, fromID string, size int) (string, error) {
 	resultv := reflect.ValueOf(result)
 	if resultv.Kind() != reflect.Ptr || resultv.Elem().Kind() != reflect.Slice {
 		return "", fmt.Errorf("result argument must be a slice address")
@@ -218,7 +249,7 @@ func (client *StructCrudStoreClient) ListWithPagination(result interface{}, from
 	return lastID, nil
 }
 
-func (client *StructCrudStoreClient) setOriginatorForMsg(msg interface{}, originator *common.Originator) error {
+func (client *clientProvider) setOriginatorForMsg(msg interface{}, originator *common.Originator) error {
 	s := reflect.ValueOf(msg).Elem()
 	typeOfT := s.Type()
 
@@ -235,7 +266,7 @@ func (client *StructCrudStoreClient) setOriginatorForMsg(msg interface{}, origin
 	return fmt.Errorf("originator field was not found in the message")
 }
 
-func (client *StructCrudStoreClient) extractOriginatorFromMsg(msg interface{}) (*common.Originator, bool) {
+func (client *clientProvider) extractOriginatorFromMsg(msg interface{}) (*common.Originator, bool) {
 	s := reflect.ValueOf(msg).Elem()
 	typeOfT := s.Type()
 

@@ -42,7 +42,7 @@ func TestCrudAdd(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, crudStore)
 
-	client := NewStructCrudStoreClient(crudStore)
+	client := NewClientWithStore(crudStore)
 
 	testCases := []struct {
 		Name      string
@@ -146,7 +146,7 @@ func TestCrudUpdate(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, crudStore)
 
-	client := NewStructCrudStoreClient(crudStore)
+	client := NewClientWithStore(crudStore)
 	user := User{
 		Email:  "makkalotupdate@gmail.com",
 		Active: true,
@@ -203,7 +203,7 @@ func TestCrudList(t *testing.T){
 	assert.NoError(t, err)
 	assert.NotNil(t, crudStore)
 
-	client := NewStructCrudStoreClient(crudStore)
+	client := NewClientWithStore(crudStore)
 
 	var users []*User
 	lastOffsetID, listErr := client.ListWithPagination(&users, "", 10)
@@ -315,7 +315,7 @@ func TestCrudDelete(t *testing.T){
 	assert.NoError(t, err)
 	assert.NotNil(t, crudStore)
 
-	client := NewStructCrudStoreClient(crudStore)
+	client := NewClientWithStore(crudStore)
 
 	t.Run("delete non existing user", func(tt *testing.T) {
 		deleteOriginator, deleteErr := client.Delete(&common.Originator{Id: "non-existing"}, &User{})

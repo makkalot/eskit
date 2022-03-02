@@ -2,60 +2,20 @@ package provider
 
 import (
 	"context"
-	"github.com/makkalot/eskit/generated/grpc/go/common"
+	"errors"
 	"github.com/makkalot/eskit/generated/grpc/go/users"
-	eskitcommon "github.com/makkalot/eskit/services/lib/common"
+	eskitstore "github.com/makkalot/eskit/services/lib/crudstore"
 
-	"github.com/makkalot/eskit/services/clients"
-
-	"fmt"
-	"github.com/makkalot/eskit/generated/grpc/go/crudstore"
-	"github.com/satori/go.uuid"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 type UserServiceProvider struct {
-	crud *clients.CrudStoreClient
+	crudStore eskitstore.Client
 }
 
-func NewUserServiceProvider(crudStoreEndpoint string) (*UserServiceProvider, error) {
-	ctx := context.Background()
-	var crudConn *grpc.ClientConn
-
-	if err := eskitcommon.RetryNormal(func() error {
-		var err error
-		crudConn, err = grpc.Dial(crudStoreEndpoint, grpc.WithInsecure())
-		if err != nil {
-			return err
-		}
-
-		return nil
-	}); err != nil {
-		return nil, err
-	}
-
-	crudGRPC := crudstore.NewCrudStoreServiceClient(crudConn)
-	_, err := crudGRPC.RegisterType(ctx, &crudstore.RegisterTypeRequest{
-		Spec: &crudstore.CrudEntitySpec{
-			EntityType: clients.EntityTypeFromMsg(&users.User{}),
-		},
-		SkipDuplicate: true,
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("type registration for use entity type failed : %v", err)
-	}
-
-	crudClient, err := clients.NewCrudStoreWithActiveConn(ctx, crudGRPC)
-	if err != nil {
-		return nil, err
-	}
-
-	return &UserServiceProvider{
-		crud: crudClient,
-	}, nil
+func NewUserServiceProvider(crudstore eskitstore.Client) (*UserServiceProvider, error) {
+	return &UserServiceProvider{crudStore: crudstore}, nil
 }
 
 func (u *UserServiceProvider) Healtz(ctx context.Context, request *users.HealthRequest) (*users.HealthResponse, error) {
@@ -63,24 +23,17 @@ func (u *UserServiceProvider) Healtz(ctx context.Context, request *users.HealthR
 }
 
 func (u *UserServiceProvider) Create(ctx context.Context, request *users.CreateRequest) (*users.CreateResponse, error) {
-	originator := &common.Originator{
-		Id:      uuid.Must(uuid.NewV4()).String(),
-		Version: "1",
-	}
-
 	user := &users.User{
-		Originator: originator,
 		Email:      request.Email,
 		FirstName:  request.FirstName,
 		LastName:   request.LastName,
 	}
 
-	createdOriginator, err := u.crud.Create(user)
+	_, err := u.crudStore.Create(user)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "creation failed")
 	}
 
-	user.Originator = createdOriginator
 
 	return &users.CreateResponse{
 		User: user,
@@ -93,7 +46,10 @@ func (u *UserServiceProvider) Get(ctx context.Context, req *users.GetRequest) (*
 	}
 
 	retrievedUser := &users.User{}
-	if err := u.crud.Get(req.Originator, retrievedUser, req.FetchDeleted); err != nil {
+	if err := u.crudStore.Get(req.Originator, retrievedUser, req.FetchDeleted); err != nil {
+		if errors.Is(err, eskitstore.RecordNotFound) || errors.Is(err, eskitstore.RecordDeleted){
+			return nil, status.Error(codes.NotFound, "deleted or not found")
+		}
 		return nil, err
 	}
 
@@ -108,7 +64,7 @@ func (u *UserServiceProvider) Update(ctx context.Context, req *users.UpdateReque
 	}
 
 	retrievedUser := &users.User{}
-	if err := u.crud.Get(req.Originator, retrievedUser, false); err != nil {
+	if err := u.crudStore.Get(req.Originator, retrievedUser, false); err != nil {
 		return nil, err
 	}
 
@@ -128,7 +84,7 @@ func (u *UserServiceProvider) Update(ctx context.Context, req *users.UpdateReque
 		retrievedUser.Active = req.Active
 	}
 
-	updatedOriginator, err := u.crud.Update(retrievedUser)
+	updatedOriginator, err := u.crudStore.Update(retrievedUser)
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +102,7 @@ func (u *UserServiceProvider) Delete(ctx context.Context, req *users.DeleteReque
 		return nil, status.Error(codes.InvalidArgument, "missing originator")
 	}
 
-	deletedOriginator, err := u.crud.Delete(req.Originator, &users.User{})
+	deletedOriginator, err := u.crudStore.Delete(req.Originator, &users.User{})
 	if err != nil {
 		return nil, err
 	}
