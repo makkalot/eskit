@@ -1,34 +1,37 @@
 package main
 
 import (
-	"net"
-	"log"
-	"google.golang.org/grpc"
-	"github.com/makkalot/eskit/services/users/provider"
-	"github.com/makkalot/eskit/generated/grpc/go/users"
-	"google.golang.org/grpc/reflection"
+	"context"
 	"github.com/go-ozzo/ozzo-validation"
-	"github.com/spf13/viper"
 	"github.com/grpc-ecosystem/go-grpc-prometheus"
-	"net/http"
+	"github.com/makkalot/eskit/generated/grpc/go/users"
+	"github.com/makkalot/eskit/services/lib/crudstore"
+	"github.com/makkalot/eskit/services/users/provider"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/spf13/viper"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
+	"log"
+	"net"
+	"net/http"
 )
 
 type UserStoreConfig struct {
-	ListenAddr        string `json:"listenAddr" mapstructure:"listenAddr"`
-	CrudStoreEndpoint string `json:"crudStoreEndpoint" mapstructure:"crudStoreEndpoint"`
+	ListenAddr string `json:"listenAddr" mapstructure:"listenAddr"`
+	DbUri      string `json:"dbUri" mapstructure:"dbUri"`
 }
 
 func (c UserStoreConfig) Validate() error {
 	return validation.ValidateStruct(&c,
-		validation.Field(&c.CrudStoreEndpoint, validation.Required),
+		validation.Field(&c.ListenAddr, validation.Required),
+		validation.Field(&c.DbUri, validation.Required),
 	)
 }
 
 func main() {
 
 	viper.SetDefault("listenAddr", ":9090")
-	viper.BindEnv("crudStoreEndpoint", "CRUDSTORE_ENDPOINT")
+	viper.BindEnv("dbUri", "DB_URI")
 
 	viper.SetConfigName("config")
 	viper.AddConfigPath("/etc/userstore")
@@ -56,7 +59,13 @@ func main() {
 	}
 
 	s := grpc.NewServer()
-	userProvider, err := provider.NewUserServiceProvider(config.CrudStoreEndpoint)
+
+	crudStoreClient, err := crudstore.NewClient(context.Background(), config.DbUri)
+	if err != nil {
+		log.Fatalf("creating crudstore client failed : %v", err)
+	}
+
+	userProvider, err := provider.NewUserServiceProvider(crudStoreClient)
 	if err != nil {
 		log.Fatalf("user provider failed initializing : %v", err)
 	}

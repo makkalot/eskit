@@ -1,13 +1,13 @@
 package users_test
 
 import (
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-	"github.com/makkalot/eskit/generated/grpc/go/users"
-	"google.golang.org/grpc"
 	"context"
 	"github.com/makkalot/eskit/generated/grpc/go/common"
+	"github.com/makkalot/eskit/generated/grpc/go/users"
 	"github.com/makkalot/eskit/tests/integration/util"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 )
 

@@ -2,5 +2,10 @@ FROM golang:1.17-stretch
 
 RUN apt-get update && apt-get install -y curl
 
-RUN go get github.com/onsi/ginkgo@v1.16.5 && \
-    go get github.com/onsi/gomega@v1.18.0
+ENV GOBIN /go/bin
+
+RUN go get github.com/onsi/ginkgo/v2 && \
+    go get github.com/onsi/gomega && \
+    go install github.com/onsi/ginkgo/v2/ginkgo@latest
+
+RUN ginkgo version

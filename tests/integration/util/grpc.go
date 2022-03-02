@@ -1,7 +1,7 @@
 package util
 
 import (
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/codes"
 	"fmt"
