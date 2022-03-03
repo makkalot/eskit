@@ -1,16 +1,14 @@
-package provider
+package consumerstore
 
 import (
 	"context"
 	"fmt"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
-	"github.com/makkalot/eskit/generated/grpc/go/consumerstore"
-	common2 "github.com/makkalot/eskit/services/lib/common"
+	eskitcommon "github.com/makkalot/eskit/services/lib/common"
+	"github.com/makkalot/eskit/services/lib/crudstore"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"strconv"
 )
 
@@ -45,15 +43,15 @@ type ConsumerEntry struct {
 	Offset string `gorm:"type:varchar(100); not null"`
 }
 
-type ConsumerApiProvider struct {
+type SQLConsumerApiProvider struct {
 	db    *gorm.DB
 	dbURI string
 }
 
-func NewConsumerApiProvider(dbURI string) (consumerstore.ConsumerServiceServer, error) {
+func NewSQLConsumerApiProvider(dbURI string) (Store, error) {
 	var db *gorm.DB
 
-	err := common2.RetryNormal(func() error {
+	err := eskitcommon.RetryNormal(func() error {
 		var err error
 		db, err = gorm.Open("postgres", dbURI)
 		if err != nil {
@@ -70,23 +68,19 @@ func NewConsumerApiProvider(dbURI string) (consumerstore.ConsumerServiceServer, 
 		return nil, result.Error
 	}
 
-	return &ConsumerApiProvider{
+	return &SQLConsumerApiProvider{
 		db:    db,
 		dbURI: dbURI,
 	}, nil
 }
 
-func (consumer *ConsumerApiProvider) Healtz(ctx context.Context, request *consumerstore.HealthRequest) (*consumerstore.HealthResponse, error) {
-	return &consumerstore.HealthResponse{}, nil
-}
-
-func (consumer *ConsumerApiProvider) LogConsume(ctx context.Context, request *consumerstore.AppLogConsumeRequest) (*consumerstore.AppLogConsumeResponse, error) {
+func (consumer *SQLConsumerApiProvider) LogConsume(ctx context.Context, request *AppLogConsumeProgress) error {
 	if request.ConsumerId == "" {
-		return nil, status.Error(codes.InvalidArgument, "missing consumer id")
+		return fmt.Errorf("missing consumer id")
 	}
 
 	if request.Offset == "" {
-		return nil, status.Error(codes.InvalidArgument, "missing offset")
+		return fmt.Errorf("missing offset")
 	}
 
 	entry := &ConsumerEntry{}
@@ -96,66 +90,64 @@ func (consumer *ConsumerApiProvider) LogConsume(ctx context.Context, request *co
 				ID:     request.ConsumerId,
 				Offset: request.Offset,
 			}); result.Error != nil {
-				return nil, status.Errorf(codes.Internal, "updating record failed : %v", result.Error)
+				return fmt.Errorf("updating record failed : %v", result.Error)
 			}
 
-			return &consumerstore.AppLogConsumeResponse{}, nil
+			return nil
 		}
-		return nil, status.Errorf(codes.Internal, "fetching record failed : %v", result.Error)
+		return fmt.Errorf("fetching record failed : %v", result.Error)
 	}
 
 	offsetFloat, err := strconv.ParseFloat(entry.Offset, 64)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid offset : %v", err)
+		return fmt.Errorf("invalid offset : %v", err)
 	}
 
 	entry.Offset = request.Offset
 	if result := consumer.db.Save(entry); result.Error != nil {
-		return nil, status.Errorf(codes.Internal, "updating record failed : %v", result.Error)
+		return fmt.Errorf("updating record failed : %v", result.Error)
 	}
 
 	consumerProgress.With(prometheus.Labels{"consumer_name": entry.ID}).Set(offsetFloat)
 	consumedCount.With(prometheus.Labels{"consumer_name": entry.ID}).Inc()
 	consumerLastSeen.With(prometheus.Labels{"consumer_name": entry.ID}).SetToCurrentTime()
 
-	return &consumerstore.AppLogConsumeResponse{}, nil
+	return nil
 }
 
-func (consumer *ConsumerApiProvider) GetLogConsume(ctx context.Context, request *consumerstore.GetAppLogConsumeRequest) (*consumerstore.GetAppLogConsumeResponse, error) {
-	if request.ConsumerId == "" {
-		return nil, status.Error(codes.InvalidArgument, "missing consumer id")
+func (consumer *SQLConsumerApiProvider) GetLogConsume(ctx context.Context, consumerID string) (*AppLogConsumeProgress, error) {
+	if consumerID == "" {
+		return nil, fmt.Errorf("missing consumer id")
 	}
 
 	entry := &ConsumerEntry{}
-	if result := consumer.db.Where("id = ?", request.ConsumerId).First(&entry); result.Error != nil {
+	if result := consumer.db.Where("id = ?", consumerID).First(&entry); result.Error != nil {
 		if result.RecordNotFound() {
-			return nil, status.Error(codes.NotFound, "consumer not found")
+			return nil, crudstore.RecordNotFound
 		}
-		return nil, status.Error(codes.Internal, "fetching failed")
+		return nil, fmt.Errorf("fetching failed : %v", result.Error)
 	}
 
-	return &consumerstore.GetAppLogConsumeResponse{
+	return &AppLogConsumeProgress{
 		ConsumerId: entry.ID,
 		Offset:     entry.Offset,
 	}, nil
 }
 
-func (consumer *ConsumerApiProvider) List(ctx context.Context, request *consumerstore.ListConsumersRequest) (*consumerstore.ListConsumersResponse, error) {
+func (consumer *SQLConsumerApiProvider) List(ctx context.Context) ([]*AppLogConsumeProgress, error) {
 
 	entries := []*ConsumerEntry{}
 	if result := consumer.db.Find(entries); result.Error != nil {
-		return nil, status.Errorf(codes.NotFound, "consumer not found %v", result.Error)
+		return nil, fmt.Errorf("fetching consumers progress failed : %v", result.Error)
 	}
 
-	var results []*consumerstore.GetAppLogConsumeResponse
+	var results []*AppLogConsumeProgress
 	for _, e := range entries {
-		results = append(results, &consumerstore.GetAppLogConsumeResponse{
+		results = append(results, &AppLogConsumeProgress{
 			ConsumerId: e.ID,
 			Offset:     e.Offset,
 		})
 	}
 
-	return &consumerstore.ListConsumersResponse{
-		Consumers: results,
-	}, nil
+	return results, nil
 }

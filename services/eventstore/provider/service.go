@@ -108,7 +108,7 @@ func (svc *EventStoreProvider) Logs(ctx context.Context, request *store.AppLogRe
 
 	for results != nil && len(results) > 0 && len(results) < int(size) {
 		for _, r := range results {
-			if svc.isEntryCompliant(r.Event, request.Selector) {
+			if eskitcommon.IsEventCompliant(r.Event, request.Selector) {
 				finalResults = append(finalResults, r)
 			}
 		}
@@ -160,7 +160,7 @@ func (svc *EventStoreProvider) LogsPoll(request *store.AppLogRequest, stream sto
 		}
 
 		for _, r := range results {
-			if svc.isEntryCompliant(r.Event, request.Selector) {
+			if eskitcommon.IsEventCompliant(r.Event, request.Selector) {
 				if err := stream.Send(r); err != nil {
 					return status.Errorf(codes.Internal, "stream send : %v", err)
 				}
@@ -178,24 +178,3 @@ func (svc *EventStoreProvider) LogsPoll(request *store.AppLogRequest, stream sto
 	}
 }
 
-func (svc *EventStoreProvider) isEntryCompliant(event *store.Event, selector string) bool {
-	if selector == "" || selector == "*" {
-		return true
-	}
-
-	selectorEntityType := eskitcommon.ExtractEntityTypeFromStr(selector)
-	selectorEventType := eskitcommon.ExtractEventTypeFromStr(selector)
-
-	entityType := eskitcommon.ExtractEntityType(event)
-	eventName := eskitcommon.ExtractEventType(event)
-
-	if selectorEntityType != "*" && selectorEntityType != entityType {
-		return false
-	}
-
-	if selectorEventType != "*" && selectorEventType != eventName {
-		return false
-	}
-
-	return true
-}

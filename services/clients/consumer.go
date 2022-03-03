@@ -2,17 +2,17 @@ package clients
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"github.com/makkalot/eskit/generated/grpc/go/consumerstore"
 	"github.com/makkalot/eskit/generated/grpc/go/eventstore"
-	common2 "github.com/makkalot/eskit/services/lib/common"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
+	eskitcommon "github.com/makkalot/eskit/services/lib/common"
+	"github.com/makkalot/eskit/services/lib/consumerstore"
+	"github.com/makkalot/eskit/services/lib/crudstore"
+	eventstore2 "github.com/makkalot/eskit/services/lib/eventstore"
 	"io"
 	"log"
 	"strconv"
-	"strings"
+	"time"
 )
 
 // TODO: (Future) maybe add some RAFT for high availability !!!
@@ -20,12 +20,12 @@ import (
 type LogOffset int
 
 type AppLogConsumer struct {
-	name         string
-	offset       LogOffset
-	consumerGRPC consumerstore.ConsumerServiceClient
-	storeClient  eventstore.EventstoreServiceClient
-	ctx          context.Context
-	selector     string
+	name          string
+	offset        LogOffset
+	consumerStore consumerstore.Store
+	storeClient   eventstore2.Store
+	ctx           context.Context
+	selector      string
 }
 
 const (
@@ -34,15 +34,16 @@ const (
 )
 
 type ConsumeCB func(entry *eventstore.AppLogEntry) error
+type ConsumeCrudCb func(entityType string, oldMessage, newMessage interface{})
 
-func NewAppLogConsumer(ctx context.Context, storeClientGRPC eventstore.EventstoreServiceClient, consumerGRPC consumerstore.ConsumerServiceClient, name string, offset LogOffset, selector string) (*AppLogConsumer, error) {
+func NewAppLogConsumer(ctx context.Context, storeClient eventstore2.Store, consumerStore consumerstore.Store, name string, offset LogOffset, selector string) (*AppLogConsumer, error) {
 	return &AppLogConsumer{
-		name:         name,
-		offset:       offset,
-		consumerGRPC: consumerGRPC,
-		storeClient:  storeClientGRPC,
-		ctx:          ctx,
-		selector:     selector,
+		name:          name,
+		offset:        offset,
+		consumerStore: consumerStore,
+		storeClient:   storeClient,
+		ctx:           ctx,
+		selector:      selector,
 	}, nil
 }
 
@@ -65,26 +66,19 @@ func (consumer *AppLogConsumer) Consume(cb ConsumeCB) error {
 				return err
 			}
 
-			eventType := entry.Event.EventType
-			parts := strings.Split(eventType, ".")
-			if strings.Join(parts[:len(parts)-1], ".") != "LogConsumer" {
-				//log.Println("Saving progress for : ", entry.Event.EventType)
-				//log.Println("Saving progress for : ", entry.Event.Originator)
-				//log.Println("Saving progress for : ", entry.Id)
-
-				if err := common2.RetryShort(func() error {
-					return consumer.SaveProgress(entry.Id)
-				}); err != nil {
-					return err
-				}
-
+			if err := eskitcommon.RetryShort(func() error {
+				return consumer.SaveProgress(entry.Id)
+			}); err != nil {
+				return err
 			}
 
 		case err := <-chErr:
+			if errors.Is(err, context.Canceled){
+				return nil
+			}
 			return err
 		}
 	}
-	return nil
 }
 
 func (consumer *AppLogConsumer) Stream() (chan *eventstore.AppLogEntry, chan error, error) {
@@ -92,14 +86,12 @@ func (consumer *AppLogConsumer) Stream() (chan *eventstore.AppLogEntry, chan err
 	if consumer.offset == FromBeginning {
 		req.FromId = "1"
 	} else if consumer.offset == FromSaved {
-		resp, err := consumer.consumerGRPC.GetLogConsume(
+		resp, err := consumer.consumerStore.GetLogConsume(
 			consumer.ctx,
-			&consumerstore.GetAppLogConsumeRequest{
-				ConsumerId: consumer.name,
-			},
+			consumer.name,
 		)
 		if err != nil {
-			if status.Code(err) != codes.NotFound {
+			if !errors.Is(err, crudstore.RecordNotFound) {
 				return nil, nil, err
 			}
 			req.FromId = "1"
@@ -124,13 +116,14 @@ func (consumer *AppLogConsumer) Stream() (chan *eventstore.AppLogEntry, chan err
 		req.Selector = consumer.selector
 	}
 
-	stream, err := consumer.storeClient.LogsPoll(consumer.ctx, req)
+	offsetInt, err := strconv.ParseInt(req.FromId, 10, 64)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	ch := make(chan *eventstore.AppLogEntry)
 	chErr := make(chan error)
+	lastIDInt := offsetInt
 
 	go func() {
 		defer func() {
@@ -139,27 +132,49 @@ func (consumer *AppLogConsumer) Stream() (chan *eventstore.AppLogEntry, chan err
 		}()
 
 		for {
-			entry, err := stream.Recv()
-			if err != nil {
-				if err == io.EOF || status.Code(err) == codes.Canceled {
-					return
-				}
 
-				log.Println("sending error to errCH : ", err)
-				chErr <- err
+			// check if it was done
+			select {
+			case <- consumer.ctx.Done():
+				chErr <- consumer.ctx.Err()
+			default:
+
+			}
+
+			results, err := consumer.storeClient.Logs(uint64(lastIDInt), 10, "")
+			if err != nil {
+				chErr <- fmt.Errorf("fetch logs : %v", err)
 				return
 			}
 
-			//log.Println("retrieved a new entry in the consumer : ", spew.Sdump(entry))
-			ch <- entry
+			if results == nil || len(results) == 0 {
+				time.Sleep(time.Millisecond * 100)
+				continue
+			}
+
+			for _, r := range results {
+				if eskitcommon.IsEventCompliant(r.Event, consumer.selector) {
+					ch <- r
+				}
+
+				nextID := results[len(results)-1].Id
+				nextIDInt, err := strconv.ParseUint(nextID, 10, 64)
+				if err != nil {
+					chErr <- fmt.Errorf("invalid fromID : %v", err)
+				}
+
+				nextIDInt++
+				lastIDInt = int64(nextIDInt)
+			}
 		}
+
 	}()
 
 	return ch, chErr, nil
 }
 
 func (consumer *AppLogConsumer) SaveProgress(offset string) error {
-	_, err := consumer.consumerGRPC.LogConsume(consumer.ctx, &consumerstore.AppLogConsumeRequest{
+	err := consumer.consumerStore.LogConsume(consumer.ctx, &consumerstore.AppLogConsumeProgress{
 		ConsumerId: consumer.name,
 		Offset:     offset,
 	})
@@ -169,36 +184,4 @@ func (consumer *AppLogConsumer) SaveProgress(offset string) error {
 	}
 
 	return nil
-}
-
-func NewConsumerStoreGRPCClient(ctx context.Context, storeEndpoint string) (consumerstore.ConsumerServiceClient, error) {
-	conn, err := grpc.Dial(storeEndpoint, grpc.WithInsecure())
-	if err != nil {
-		return nil, err
-	}
-
-	return consumerstore.NewConsumerServiceClient(conn), nil
-
-}
-
-func NewConsumerStoreGrpcClientWithWait(ctx context.Context, storeEndpoint string) (consumerstore.ConsumerServiceClient, error) {
-	var conn *grpc.ClientConn
-	var storeClient consumerstore.ConsumerServiceClient
-
-	err := common2.RetryNormal(func() error {
-		var err error
-		conn, err = grpc.Dial(storeEndpoint, grpc.WithInsecure())
-		if err != nil {
-			return err
-		}
-
-		storeClient = consumerstore.NewConsumerServiceClient(conn)
-		_, err = storeClient.Healtz(ctx, &consumerstore.HealthRequest{})
-		if err != nil {
-			return err
-		}
-
-		return nil
-	})
-	return storeClient, err
 }

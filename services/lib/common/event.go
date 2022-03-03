@@ -60,3 +60,25 @@ func ExtractEventTypeFromStr(eventStr string) string {
 	parts := strings.Split(eventStr, ".")
 	return parts[len(parts)-1]
 }
+
+func IsEventCompliant(event *store.Event, selector string) bool {
+	if selector == "" || selector == "*" {
+		return true
+	}
+
+	selectorEntityType := ExtractEntityTypeFromStr(selector)
+	selectorEventType := ExtractEventTypeFromStr(selector)
+
+	entityType := ExtractEntityType(event)
+	eventName := ExtractEventType(event)
+
+	if selectorEntityType != "*" && selectorEntityType != entityType {
+		return false
+	}
+
+	if selectorEventType != "*" && selectorEventType != eventName {
+		return false
+	}
+
+	return true
+}
