@@ -5,7 +5,7 @@ import (
 	"github.com/go-ozzo/ozzo-validation"
 	"github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/makkalot/eskit/generated/grpc/go/users"
-	"github.com/makkalot/eskit/services/lib/crudstore"
+	"github.com/makkalot/eskit/lib/crudstore"
 	"github.com/makkalot/eskit/services/users/provider"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/viper"

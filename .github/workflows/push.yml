@@ -13,8 +13,21 @@ jobs:
       - uses: actions/checkout@v2
       - name: Build Docker Images
         run: make build-compose-go
-      - name: Push Images
-        env:
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-        run: make publish
+      - name: Test Go Services Unit
+        run: make test-compose-go-unit
+      - name: Test Go Services Integration
+        run: make test-compose-go-integration
+
+#jobs:
+#  build:
+#    runs-on: ubuntu-latest
+#    steps:
+#      - uses: actions/checkout@v2
+#      - name: Build Docker Images
+#        run: make build-compose-go
+#      - name: Push Images
+#        env:
+#          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+#          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+#        run: make publish
+#

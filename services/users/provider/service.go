@@ -4,17 +4,16 @@ import (
 	"context"
 	"errors"
 	"github.com/makkalot/eskit/generated/grpc/go/users"
-	eskitstore "github.com/makkalot/eskit/services/lib/crudstore"
-
+	"github.com/makkalot/eskit/lib/crudstore"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 type UserServiceProvider struct {
-	crudStore eskitstore.Client
+	crudStore crudstore.Client
 }
 
-func NewUserServiceProvider(crudstore eskitstore.Client) (*UserServiceProvider, error) {
+func NewUserServiceProvider(crudstore crudstore.Client) (*UserServiceProvider, error) {
 	return &UserServiceProvider{crudStore: crudstore}, nil
 }
 
@@ -47,7 +46,7 @@ func (u *UserServiceProvider) Get(ctx context.Context, req *users.GetRequest) (*
 
 	retrievedUser := &users.User{}
 	if err := u.crudStore.Get(req.Originator, retrievedUser, req.FetchDeleted); err != nil {
-		if errors.Is(err, eskitstore.RecordNotFound) || errors.Is(err, eskitstore.RecordDeleted){
+		if errors.Is(err, crudstore.RecordNotFound) || errors.Is(err, crudstore.RecordDeleted){
 			return nil, status.Error(codes.NotFound, "deleted or not found")
 		}
 		return nil, err
