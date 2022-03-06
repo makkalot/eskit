@@ -1,4 +1,4 @@
-package clients
+package consumer
 
 import (
 	"context"
@@ -24,7 +24,6 @@ type AppLogConsumer struct {
 	offset        LogOffset
 	consumerStore consumerstore.Store
 	storeClient   eventstore2.Store
-	ctx           context.Context
 	selector      string
 }
 
@@ -33,25 +32,30 @@ const (
 	FromSaved               = 2
 )
 
+var (
+	// FatalConsumerError is raised from internal loop of consumer
+	FatalConsumerError = errors.New("fatal consumer error")
+	// StopConsumerError is raised from CB so the consumer can stop otherwise the error is ignored
+	StopConsumerError = errors.New("stop consumer error")
+)
+
 type ConsumeCB func(entry *eventstore.AppLogEntry) error
 type ConsumeCrudCb func(entityType string, oldMessage, newMessage interface{})
 
-func NewAppLogConsumer(ctx context.Context, storeClient eventstore2.Store, consumerStore consumerstore.Store, name string, offset LogOffset, selector string) (*AppLogConsumer, error) {
+func NewAppLogConsumer(storeClient eventstore2.Store, consumerStore consumerstore.Store, name string, offset LogOffset, selector string) (*AppLogConsumer, error) {
 	return &AppLogConsumer{
 		name:          name,
 		offset:        offset,
 		consumerStore: consumerStore,
 		storeClient:   storeClient,
-		ctx:           ctx,
 		selector:      selector,
 	}, nil
 }
 
 // Consume starts consuming entries on cb
 // success the offset is saved to the server so on crash continues
-func (consumer *AppLogConsumer) Consume(cb ConsumeCB) error {
-
-	ch, chErr, err := consumer.Stream()
+func (consumer *AppLogConsumer) Consume(ctx context.Context, cb ConsumeCB) error {
+	ch, chErr, err := consumer.Stream(ctx)
 	if err != nil {
 		return err
 	}
@@ -67,7 +71,7 @@ func (consumer *AppLogConsumer) Consume(cb ConsumeCB) error {
 			}
 
 			if err := eskitcommon.RetryShort(func() error {
-				return consumer.SaveProgress(entry.Id)
+				return consumer.SaveProgress(ctx, entry.Id)
 			}); err != nil {
 				return err
 			}
@@ -76,18 +80,23 @@ func (consumer *AppLogConsumer) Consume(cb ConsumeCB) error {
 			if errors.Is(err, context.Canceled){
 				return nil
 			}
-			return err
+
+			if errors.Is(err, FatalConsumerError) || errors.Is(err, StopConsumerError){
+				return err
+			}
+
+			// do nothing here just continue
 		}
 	}
 }
 
-func (consumer *AppLogConsumer) Stream() (chan *eventstore.AppLogEntry, chan error, error) {
+func (consumer *AppLogConsumer) Stream(ctx context.Context) (chan *eventstore.AppLogEntry, chan error, error) {
 	req := &eventstore.AppLogRequest{}
 	if consumer.offset == FromBeginning {
 		req.FromId = "1"
 	} else if consumer.offset == FromSaved {
 		resp, err := consumer.consumerStore.GetLogConsume(
-			consumer.ctx,
+			ctx,
 			consumer.name,
 		)
 		if err != nil {
@@ -135,8 +144,8 @@ func (consumer *AppLogConsumer) Stream() (chan *eventstore.AppLogEntry, chan err
 
 			// check if it was done
 			select {
-			case <- consumer.ctx.Done():
-				chErr <- consumer.ctx.Err()
+			case <- ctx.Done():
+				chErr <- ctx.Err()
 			default:
 
 			}
@@ -173,8 +182,8 @@ func (consumer *AppLogConsumer) Stream() (chan *eventstore.AppLogEntry, chan err
 	return ch, chErr, nil
 }
 
-func (consumer *AppLogConsumer) SaveProgress(offset string) error {
-	err := consumer.consumerStore.LogConsume(consumer.ctx, &consumerstore.AppLogConsumeProgress{
+func (consumer *AppLogConsumer) SaveProgress(ctx context.Context, offset string) error {
+	err := consumer.consumerStore.LogConsume(ctx, &consumerstore.AppLogConsumeProgress{
 		ConsumerId: consumer.name,
 		Offset:     offset,
 	})
