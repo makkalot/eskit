@@ -6,8 +6,8 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/makkalot/eskit/generated/grpc/go/common"
 	store "github.com/makkalot/eskit/generated/grpc/go/eventstore"
-	"github.com/makkalot/eskit/services/lib/consumerstore"
-	"github.com/makkalot/eskit/services/lib/eventstore"
+	"github.com/makkalot/eskit/lib/consumerstore"
+	"github.com/makkalot/eskit/lib/eventstore"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )

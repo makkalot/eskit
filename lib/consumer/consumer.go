@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"github.com/makkalot/eskit/generated/grpc/go/eventstore"
-	eskitcommon "github.com/makkalot/eskit/services/lib/common"
-	"github.com/makkalot/eskit/services/lib/consumerstore"
-	"github.com/makkalot/eskit/services/lib/crudstore"
-	eventstore2 "github.com/makkalot/eskit/services/lib/eventstore"
+	"github.com/makkalot/eskit/lib/common"
+	"github.com/makkalot/eskit/lib/consumerstore"
+	"github.com/makkalot/eskit/lib/crudstore"
+	eventstore2 "github.com/makkalot/eskit/lib/eventstore"
 	"io"
 	"log"
 	"strconv"
@@ -70,7 +70,7 @@ func (consumer *AppLogConsumer) Consume(ctx context.Context, cb ConsumeCB) error
 				return err
 			}
 
-			if err := eskitcommon.RetryShort(func() error {
+			if err := common.RetryShort(func() error {
 				return consumer.SaveProgress(ctx, entry.Id)
 			}); err != nil {
 				return err
@@ -162,7 +162,7 @@ func (consumer *AppLogConsumer) Stream(ctx context.Context) (chan *eventstore.Ap
 			}
 
 			for _, r := range results {
-				if eskitcommon.IsEventCompliant(r.Event, consumer.selector) {
+				if common.IsEventCompliant(r.Event, consumer.selector) {
 					ch <- r
 				}
 

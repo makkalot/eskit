@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/makkalot/eskit/generated/grpc/go/common"
 	store "github.com/makkalot/eskit/generated/grpc/go/eventstore"
-	eskitcommon "github.com/makkalot/eskit/services/lib/common"
+	eskitcommon "github.com/makkalot/eskit/lib/common"
 	"strconv"
 )
 

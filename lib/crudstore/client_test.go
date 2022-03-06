@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"github.com/jinzhu/copier"
 	"github.com/makkalot/eskit/generated/grpc/go/common"
-	eskitcommon "github.com/makkalot/eskit/services/lib/common"
-	"github.com/makkalot/eskit/services/lib/eventstore"
+	eskitcommon "github.com/makkalot/eskit/lib/common"
+	eventstore2 "github.com/makkalot/eskit/lib/eventstore"
 	uuid "github.com/satori/go.uuid"
 	"github.com/stretchr/testify/assert"
 	"os"
@@ -30,7 +30,7 @@ type User struct {
 }
 
 func TestCrudAdd(t *testing.T) {
-	sqlStore := eventstore.NewInMemoryStore()
+	sqlStore := eventstore2.NewInMemoryStore()
 	assert.NotNil(t, sqlStore)
 
 	// cleaning up all of the data we added during those tests
@@ -134,7 +134,7 @@ func TestCrudAdd(t *testing.T) {
 }
 
 func TestCrudUpdate(t *testing.T) {
-	sqlStore := eventstore.NewInMemoryStore()
+	sqlStore := eventstore2.NewInMemoryStore()
 	assert.NotNil(t, sqlStore)
 
 	// cleaning up all of the data we added during those tests
@@ -183,7 +183,7 @@ func TestCrudUpdate(t *testing.T) {
 
 	user.LastName = "LastName"
 	lastUpdatedOriginator, err := client.Update(&oldCopyUser)
-	assert.ErrorIs(t, err, eventstore.ErrDuplicate,  "there should be version duplicate")
+	assert.ErrorIs(t, err, eventstore2.ErrDuplicate,  "there should be version duplicate")
 	assert.Nil(t, lastUpdatedOriginator, "updated originator empty")
 
 }
@@ -191,7 +191,7 @@ func TestCrudUpdate(t *testing.T) {
 
 // tests the listing here
 func TestCrudList(t *testing.T){
-	sqlStore := eventstore.NewInMemoryStore()
+	sqlStore := eventstore2.NewInMemoryStore()
 	assert.NotNil(t, sqlStore)
 
 	// cleaning up all of the data we added during those tests
@@ -303,7 +303,7 @@ func TestCrudList(t *testing.T){
 
 // tests the deletion
 func TestCrudDelete(t *testing.T){
-	sqlStore := eventstore.NewInMemoryStore()
+	sqlStore := eventstore2.NewInMemoryStore()
 	assert.NotNil(t, sqlStore)
 
 	// cleaning up all of the data we added during those tests

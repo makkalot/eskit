@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/makkalot/eskit/generated/grpc/go/common"
-	"github.com/makkalot/eskit/services/lib/eventstore"
+	eventstore2 "github.com/makkalot/eskit/lib/eventstore"
 	uuid "github.com/satori/go.uuid"
 	"log"
 	"reflect"
@@ -29,13 +29,13 @@ type clientProvider struct {
 }
 
 func NewClient(ctx context.Context, dbUri string) (*clientProvider, error) {
-	var estore eventstore.Store
+	var estore eventstore2.Store
 	var err error
 
 	if dbUri == "inmemory://" {
-		estore = eventstore.NewInMemoryStore()
+		estore = eventstore2.NewInMemoryStore()
 	} else {
-		estore, err = eventstore.NewSqlStore("postgres", dbUri)
+		estore, err = eventstore2.NewSqlStore("postgres", dbUri)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create event store : %v", err)
 		}

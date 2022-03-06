@@ -8,7 +8,7 @@ import (
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 	"github.com/makkalot/eskit/generated/grpc/go/common"
 	store "github.com/makkalot/eskit/generated/grpc/go/eventstore"
-	eskitcommon "github.com/makkalot/eskit/services/lib/common"
+	common2 "github.com/makkalot/eskit/lib/common"
 	"github.com/prometheus/client_golang/prometheus"
 	"strconv"
 	"strings"
@@ -39,7 +39,7 @@ type SqlStore struct {
 func NewSqlStore(dialect string, dbURI string) (*SqlStore, error) {
 	var db *gorm.DB
 
-	err := eskitcommon.RetryNormal(func() error {
+	err := common2.RetryNormal(func() error {
 		var err error
 		db, err = gorm.Open(dialect, dbURI)
 		if err != nil {
@@ -101,7 +101,7 @@ func (estore *SqlStore) Append(event *store.Event) error {
 
 	//log.Println("stored event : ", spew.Sdump(storedEvent))
 
-	entityType := eskitcommon.ExtractEntityType(event)
+	entityType := common2.ExtractEntityType(event)
 	jsonEvent, err := json.Marshal(event)
 	if err != nil {
 		return err

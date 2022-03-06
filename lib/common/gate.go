@@ -1,8 +1,8 @@
 package common
 
 import (
-        "net/http"
 	"log"
+	"net/http"
 )
 
 type Gate struct {}

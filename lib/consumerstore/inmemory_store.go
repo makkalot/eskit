@@ -3,7 +3,7 @@ package consumerstore
 import (
 	"context"
 	"fmt"
-	"github.com/makkalot/eskit/services/lib/crudstore"
+	"github.com/makkalot/eskit/lib/crudstore"
 )
 
 type InMemoryConsumerApiProvider struct {
