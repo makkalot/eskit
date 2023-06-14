@@ -1,12 +1,12 @@
 package util
 
 import (
-	. "github.com/onsi/ginkgo/v2"
-	"google.golang.org/grpc/status"
-	"google.golang.org/grpc/codes"
 	"fmt"
-	store "github.com/makkalot/eskit/generated/grpc/go/eventstore"
-	"github.com/golang/protobuf/proto"
+	"github.com/makkalot/eskit/lib/common"
+	. "github.com/onsi/ginkgo/v2"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"reflect"
 
 	"github.com/davecgh/go-spew/spew"
 )
@@ -29,9 +29,9 @@ func AssertGrpcCode(err error, code codes.Code) {
 	}
 }
 
-func AssertContainsEventLogEntry(event *store.Event, logEntries []*store.AppLogEntry) {
+func AssertContainsEventLogEntry(event *common.Event, logEntries []*common.AppLogEntry) {
 	for _, entry := range logEntries {
-		if proto.Equal(entry.Event, event) {
+		if reflect.DeepEqual(entry.Event, event) {
 			return
 		}
 	}
@@ -39,9 +39,9 @@ func AssertContainsEventLogEntry(event *store.Event, logEntries []*store.AppLogE
 	Fail(fmt.Sprintf("event : %s is not in %s", spew.Sdump(event), spew.Sdump(logEntries)))
 }
 
-func AssertContainsEvent(event *store.Event, events []*store.Event) {
+func AssertContainsEvent(event *common.Event, events []*common.Event) {
 	for _, e := range events {
-		if proto.Equal(e, event) {
+		if reflect.DeepEqual(e, event) {
 			return
 		}
 	}

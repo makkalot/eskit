@@ -2,9 +2,9 @@ package eventstore
 
 import (
 	"fmt"
-	"github.com/makkalot/eskit/generated/grpc/go/common"
-	store "github.com/makkalot/eskit/generated/grpc/go/eventstore"
+	"github.com/makkalot/eskit/lib/common"
 	eskitcommon "github.com/makkalot/eskit/lib/common"
+	store "github.com/makkalot/eskit/lib/common"
 	"strconv"
 )
 

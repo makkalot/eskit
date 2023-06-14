@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jinzhu/copier"
-	"github.com/makkalot/eskit/generated/grpc/go/common"
+	"github.com/makkalot/eskit/lib/common"
 	eskitcommon "github.com/makkalot/eskit/lib/common"
 	eventstore2 "github.com/makkalot/eskit/lib/eventstore"
 	uuid "github.com/satori/go.uuid"
@@ -183,14 +183,13 @@ func TestCrudUpdate(t *testing.T) {
 
 	user.LastName = "LastName"
 	lastUpdatedOriginator, err := client.Update(&oldCopyUser)
-	assert.ErrorIs(t, err, eventstore2.ErrDuplicate,  "there should be version duplicate")
+	assert.ErrorIs(t, err, eventstore2.ErrDuplicate, "there should be version duplicate")
 	assert.Nil(t, lastUpdatedOriginator, "updated originator empty")
 
 }
 
-
 // tests the listing here
-func TestCrudList(t *testing.T){
+func TestCrudList(t *testing.T) {
 	sqlStore := eventstore2.NewInMemoryStore()
 	assert.NotNil(t, sqlStore)
 
@@ -252,7 +251,6 @@ func TestCrudList(t *testing.T){
 	assert.NoError(t, err, "creation for user 2 failed")
 	assert.NotNil(t, originatorTwo, "empty originator for user 2")
 
-
 	// try the pagination as well
 	t.Run("pagination test", func(tt *testing.T) {
 		lastOffsetID, listErr = client.ListWithPagination(&users, "", 1)
@@ -302,7 +300,7 @@ func TestCrudList(t *testing.T){
 }
 
 // tests the deletion
-func TestCrudDelete(t *testing.T){
+func TestCrudDelete(t *testing.T) {
 	sqlStore := eventstore2.NewInMemoryStore()
 	assert.NotNil(t, sqlStore)
 

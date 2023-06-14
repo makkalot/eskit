@@ -34,6 +34,7 @@ func (consumer *InMemoryConsumerApiProvider) LogConsume(ctx context.Context, req
 	return nil
 }
 
+// GetLogConsume returns the consumer progress
 func (consumer *InMemoryConsumerApiProvider) GetLogConsume(ctx context.Context, consumerID string) (*AppLogConsumeProgress, error) {
 	if consumerID == "" {
 		return nil, fmt.Errorf("missing consumer id")
@@ -49,6 +50,7 @@ func (consumer *InMemoryConsumerApiProvider) GetLogConsume(ctx context.Context, 
 	}, nil
 }
 
+// List returns all the consumer progress
 func (consumer *InMemoryConsumerApiProvider) List(ctx context.Context) ([]*AppLogConsumeProgress, error) {
 
 	var results []*AppLogConsumeProgress

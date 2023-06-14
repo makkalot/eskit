@@ -6,15 +6,16 @@ import (
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
-	"github.com/makkalot/eskit/generated/grpc/go/common"
-	store "github.com/makkalot/eskit/generated/grpc/go/eventstore"
+	"github.com/makkalot/eskit/lib/common"
 	common2 "github.com/makkalot/eskit/lib/common"
+	store "github.com/makkalot/eskit/lib/common"
 	"github.com/prometheus/client_golang/prometheus"
 	"strconv"
 	"strings"
 	"time"
 )
 
+// StoredEvent is the model for the stored_events table
 type StoredEvent struct {
 	OriginatorID      string `gorm:"primary_key; not null"`
 	OriginatorVersion uint   `gorm:"primary_key; not null"`

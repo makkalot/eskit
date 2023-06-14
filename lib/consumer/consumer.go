@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/makkalot/eskit/generated/grpc/go/eventstore"
 	"github.com/makkalot/eskit/lib/common"
 	"github.com/makkalot/eskit/lib/consumerstore"
 	"github.com/makkalot/eskit/lib/crudstore"
@@ -39,7 +38,7 @@ var (
 	StopConsumerError = errors.New("stop consumer error")
 )
 
-type ConsumeCB func(entry *eventstore.AppLogEntry) error
+type ConsumeCB func(entry *common.AppLogEntry) error
 type ConsumeCrudCb func(entityType string, oldMessage, newMessage interface{})
 
 func NewAppLogConsumer(storeClient eventstore2.Store, consumerStore consumerstore.Store, name string, offset LogOffset, selector string) (*AppLogConsumer, error) {
@@ -77,11 +76,11 @@ func (consumer *AppLogConsumer) Consume(ctx context.Context, cb ConsumeCB) error
 			}
 
 		case err := <-chErr:
-			if errors.Is(err, context.Canceled){
+			if errors.Is(err, context.Canceled) {
 				return nil
 			}
 
-			if errors.Is(err, FatalConsumerError) || errors.Is(err, StopConsumerError){
+			if errors.Is(err, FatalConsumerError) || errors.Is(err, StopConsumerError) {
 				return err
 			}
 
@@ -90,10 +89,11 @@ func (consumer *AppLogConsumer) Consume(ctx context.Context, cb ConsumeCB) error
 	}
 }
 
-func (consumer *AppLogConsumer) Stream(ctx context.Context) (chan *eventstore.AppLogEntry, chan error, error) {
-	req := &eventstore.AppLogRequest{}
+func (consumer *AppLogConsumer) Stream(ctx context.Context) (chan *common.AppLogEntry, chan error, error) {
+	var fromID string
+
 	if consumer.offset == FromBeginning {
-		req.FromId = "1"
+		fromID = "1"
 	} else if consumer.offset == FromSaved {
 		resp, err := consumer.consumerStore.GetLogConsume(
 			ctx,
@@ -103,7 +103,7 @@ func (consumer *AppLogConsumer) Stream(ctx context.Context) (chan *eventstore.Ap
 			if !errors.Is(err, crudstore.RecordNotFound) {
 				return nil, nil, err
 			}
-			req.FromId = "1"
+			fromID = "1"
 		} else {
 			offsetInt, err := strconv.ParseInt(resp.Offset, 10, 64)
 			if err != nil {
@@ -113,24 +113,20 @@ func (consumer *AppLogConsumer) Stream(ctx context.Context) (chan *eventstore.Ap
 			// we want to start from the next id to skip the last saved so
 			// we don't process duplicates again
 			offsetInt += 1
-			req.FromId = strconv.Itoa(int(offsetInt))
+			fromID = strconv.Itoa(int(offsetInt))
 		}
 
-		log.Println("starting the consuming from offset : ", req.FromId)
+		log.Println("starting the consuming from offset : ", fromID)
 	} else {
 		return nil, nil, fmt.Errorf("invalid offset supplied")
 	}
 
-	if consumer.selector != "*" && consumer.selector != "" {
-		req.Selector = consumer.selector
-	}
-
-	offsetInt, err := strconv.ParseInt(req.FromId, 10, 64)
+	offsetInt, err := strconv.ParseInt(fromID, 10, 64)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	ch := make(chan *eventstore.AppLogEntry)
+	ch := make(chan *common.AppLogEntry)
 	chErr := make(chan error)
 	lastIDInt := offsetInt
 
@@ -144,7 +140,7 @@ func (consumer *AppLogConsumer) Stream(ctx context.Context) (chan *eventstore.Ap
 
 			// check if it was done
 			select {
-			case <- ctx.Done():
+			case <-ctx.Done():
 				chErr <- ctx.Err()
 			default:
 

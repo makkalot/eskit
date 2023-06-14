@@ -13,26 +13,33 @@ type UserServiceProvider struct {
 	crudStore crudstore.Client
 }
 
+type CreateRequest struct {
+	Email     string
+	FirstName string
+	LastName  string
+}
+
+type User struct {
+	Email     string
+	FirstName string
+	LastName  string
+}
+
 func NewUserServiceProvider(crudstore crudstore.Client) (*UserServiceProvider, error) {
 	return &UserServiceProvider{crudStore: crudstore}, nil
 }
 
-func (u *UserServiceProvider) Healtz(ctx context.Context, request *users.HealthRequest) (*users.HealthResponse, error) {
-	return &users.HealthResponse{}, nil
-}
-
-func (u *UserServiceProvider) Create(ctx context.Context, request *users.CreateRequest) (*users.CreateResponse, error) {
-	user := &users.User{
-		Email:      request.Email,
-		FirstName:  request.FirstName,
-		LastName:   request.LastName,
+func (u *UserServiceProvider) Create(ctx context.Context, request *CreateRequest) (*users.CreateResponse, error) {
+	user := &User{
+		Email:     request.Email,
+		FirstName: request.FirstName,
+		LastName:  request.LastName,
 	}
 
 	_, err := u.crudStore.Create(user)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "creation failed")
 	}
-
 
 	return &users.CreateResponse{
 		User: user,
@@ -46,7 +53,7 @@ func (u *UserServiceProvider) Get(ctx context.Context, req *users.GetRequest) (*
 
 	retrievedUser := &users.User{}
 	if err := u.crudStore.Get(req.Originator, retrievedUser, req.FetchDeleted); err != nil {
-		if errors.Is(err, crudstore.RecordNotFound) || errors.Is(err, crudstore.RecordDeleted){
+		if errors.Is(err, crudstore.RecordNotFound) || errors.Is(err, crudstore.RecordDeleted) {
 			return nil, status.Error(codes.NotFound, "deleted or not found")
 		}
 		return nil, err

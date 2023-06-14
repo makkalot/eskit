@@ -2,12 +2,11 @@ package common
 
 import (
 	"fmt"
-	"github.com/makkalot/eskit/generated/grpc/go/common"
-	store "github.com/makkalot/eskit/generated/grpc/go/eventstore"
 	"strconv"
 	"strings"
 )
 
+// IncrStringInt increments a string representing an integer
 func IncrStringInt(s string) (string, error) {
 	versionInt, err := strconv.ParseUint(s, 10, 64)
 	if err != nil {
@@ -18,6 +17,7 @@ func IncrStringInt(s string) (string, error) {
 	return strconv.Itoa(int(versionInt)), nil
 }
 
+// MustIncrStringInt increments a string representing an integer and panics on error
 func MustIncrStringInt(s string) string {
 	newVersion, err := IncrStringInt(s)
 	if err != nil {
@@ -26,7 +26,8 @@ func MustIncrStringInt(s string) string {
 	return newVersion
 }
 
-func IncrOriginator(originator *common.Originator) (*common.Originator, error) {
+// IncrOriginator increments the version of an originator
+func IncrOriginator(originator *Originator) (*Originator, error) {
 	if originator.Version == "" {
 		return nil, fmt.Errorf("missing version")
 	}
@@ -36,13 +37,13 @@ func IncrOriginator(originator *common.Originator) (*common.Originator, error) {
 		return nil, err
 	}
 
-	return &common.Originator{
+	return &Originator{
 		Id:      originator.Id,
 		Version: newVersion,
 	}, nil
 }
 
-func ExtractEntityType(event *store.Event) string {
+func ExtractEntityType(event *Event) string {
 	return ExtractEntityTypeFromStr(event.EventType)
 }
 
@@ -52,7 +53,7 @@ func ExtractEntityTypeFromStr(eventStr string) string {
 	return entityType
 }
 
-func ExtractEventType(event *store.Event) string {
+func ExtractEventType(event *Event) string {
 	return ExtractEventTypeFromStr(event.EventType)
 }
 
@@ -61,7 +62,7 @@ func ExtractEventTypeFromStr(eventStr string) string {
 	return parts[len(parts)-1]
 }
 
-func IsEventCompliant(event *store.Event, selector string) bool {
+func IsEventCompliant(event *Event, selector string) bool {
 	if selector == "" || selector == "*" {
 		return true
 	}

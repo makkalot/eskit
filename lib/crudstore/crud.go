@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/makkalot/eskit/generated/grpc/go/common"
-	store "github.com/makkalot/eskit/generated/grpc/go/eventstore"
+	"github.com/makkalot/eskit/lib/common"
 	eskitcommon "github.com/makkalot/eskit/lib/common"
+	store "github.com/makkalot/eskit/lib/common"
 	"github.com/makkalot/eskit/lib/eventstore"
 	"gopkg.in/evanphx/json-patch.v3"
 	"strconv"
@@ -64,7 +64,7 @@ func (crud *CrudStoreProvider) Create(entityType string, originator *common.Orig
 		Originator: originator,
 		EventType:  fmt.Sprintf("%s.Created", entityType),
 		Payload:    payload,
-		OccuredOn:  time.Now().UTC().Unix(),
+		OccurredOn: time.Now().UTC().Unix(),
 	}
 
 	//log.Printf("Appending Create Event : %s", spew.Sdump(event))
@@ -99,7 +99,7 @@ func (crud *CrudStoreProvider) Update(entityType string, originator *common.Orig
 		Originator: newOriginator,
 		EventType:  fmt.Sprintf("%s.Updated", entityType),
 		Payload:    string(patch),
-		OccuredOn:  time.Now().UTC().Unix(),
+		OccurredOn: time.Now().UTC().Unix(),
 	}
 
 	err = crud.estore.Append(event)
@@ -238,21 +238,6 @@ func (crud *CrudStoreProvider) List(entityType, fromID string, size int) ([]*com
 	return results, lastID, nil
 }
 
-func (crud *CrudStoreProvider) isEventDeleted(event *store.Event) bool {
-	eventType := eskitcommon.ExtractEventType(event)
-	return strings.ToLower(eventType) == "deleted"
-}
-
-func (crud *CrudStoreProvider) isCrudEvent(event *store.Event) bool {
-	eventType := eskitcommon.ExtractEventType(event)
-	switch strings.ToLower(eventType) {
-	case "created", "updated", "deleted":
-		return true
-	default:
-		return false
-	}
-}
-
 func (crud *CrudStoreProvider) Delete(entityType string, originator *common.Originator) (*common.Originator, error) {
 	_, latestOriginator, err := crud.Get(originator, false)
 	if err != nil {
@@ -268,7 +253,7 @@ func (crud *CrudStoreProvider) Delete(entityType string, originator *common.Orig
 		Originator: newOriginator,
 		EventType:  fmt.Sprintf("%s.Deleted", entityType),
 		Payload:    "{}",
-		OccuredOn:  time.Now().UTC().Unix(),
+		OccurredOn: time.Now().UTC().Unix(),
 	}
 
 	err = crud.estore.Append(event)
@@ -278,4 +263,19 @@ func (crud *CrudStoreProvider) Delete(entityType string, originator *common.Orig
 
 	return newOriginator, nil
 
+}
+
+func (crud *CrudStoreProvider) isEventDeleted(event *store.Event) bool {
+	eventType := eskitcommon.ExtractEventType(event)
+	return strings.ToLower(eventType) == "deleted"
+}
+
+func (crud *CrudStoreProvider) isCrudEvent(event *store.Event) bool {
+	eventType := eskitcommon.ExtractEventType(event)
+	switch strings.ToLower(eventType) {
+	case "created", "updated", "deleted":
+		return true
+	default:
+		return false
+	}
 }

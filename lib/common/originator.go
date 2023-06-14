@@ -1,13 +1,13 @@
 package common
 
 import (
-	"github.com/makkalot/eskit/generated/grpc/go/common"
-	"github.com/satori/go.uuid"
+	uuid "github.com/satori/go.uuid"
 )
 
-func NewOriginator() *common.Originator {
+// NewOriginator creates a new originator with a new uuid
+func NewOriginator() *Originator {
 	id := uuid.Must(uuid.NewV4()).String()
-	return &common.Originator{
+	return &Originator{
 		Id:      id,
 		Version: "1",
 	}

@@ -17,7 +17,6 @@ jobs:
         run: make test-compose-go-unit
       - name: Test Go Services Integration
         run: make test-compose-go-integration
-
 #jobs:
 #  build:
 #    runs-on: ubuntu-latest

@@ -1,14 +1,13 @@
 package eventstore
 
 import (
-	"github.com/makkalot/eskit/generated/grpc/go/common"
+	"github.com/makkalot/eskit/lib/common"
 	"github.com/satori/go.uuid"
 	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
 
-	"github.com/golang/protobuf/proto"
-	store "github.com/makkalot/eskit/generated/grpc/go/eventstore"
+	store "github.com/makkalot/eskit/lib/common"
 )
 
 func TestSqlStore(tm *testing.T) {
@@ -75,13 +74,13 @@ func TestSqlStore(tm *testing.T) {
 
 			assert.NoError(t, err)
 			assert.Len(t, events, 1)
-			assert.True(t, proto.Equal(events[0], e1))
+			assert.EqualValues(t, e1, events[0])
 
 			logs, err = currentStore.Logs(0, 20, "")
 			assert.NoError(t, err)
 			assert.Len(t, logs, 1)
 			assert.Equal(t, logs[0].Id, "1")
-			assert.True(t, proto.Equal(logs[0].Event, e1))
+			assert.EqualValues(t, e1, logs[0].Event)
 
 			logs, err = currentStore.Logs(1, 20, "")
 			assert.NoError(t, err)
@@ -108,8 +107,8 @@ func TestSqlStore(tm *testing.T) {
 
 			assert.NoError(t, err)
 			assert.Len(t, events, 2)
-			assert.True(t, proto.Equal(events[0], e1))
-			assert.True(t, proto.Equal(events[1], e2))
+			assert.EqualValues(t, e1, events[0])
+			assert.EqualValues(t, e2, events[1])
 
 			events, err = currentStore.Get(&common.Originator{
 				Id:      originator.Id,
@@ -118,7 +117,7 @@ func TestSqlStore(tm *testing.T) {
 
 			assert.NoError(t, err)
 			assert.Len(t, events, 1)
-			assert.True(t, proto.Equal(events[0], e1))
+			assert.EqualValues(t, e1, events[0])
 
 			events, err = currentStore.Get(&common.Originator{
 				Id:      originator.Id,
@@ -127,22 +126,22 @@ func TestSqlStore(tm *testing.T) {
 
 			assert.NoError(t, err)
 			assert.Len(t, events, 1)
-			assert.True(t, proto.Equal(events[0], e2))
+			assert.EqualValues(t, e2, events[0])
 
 			logs, err = currentStore.Logs(0, 20, "")
 			assert.NoError(t, err)
 			assert.Len(t, logs, 2)
 			assert.Equal(t, logs[0].Id, "1")
-			assert.True(t, proto.Equal(logs[0].Event, e1))
+			assert.EqualValues(t, e1, logs[0].Event)
 			assert.Equal(t, logs[1].Id, "2")
-			assert.True(t, proto.Equal(logs[1].Event, e2))
+			assert.EqualValues(t, e2, logs[1].Event)
 
 			logs, err = currentStore.Logs(2, 20, "")
 			assert.NoError(t, err)
 			assert.Len(t, logs, 1)
 
 			assert.Equal(t, logs[0].Id, "2")
-			assert.True(t, proto.Equal(logs[0].Event, e2))
+			assert.EqualValues(t, e2, logs[0].Event)
 
 			e3 := &store.Event{
 				Originator: &common.Originator{
@@ -162,63 +161,48 @@ func TestSqlStore(tm *testing.T) {
 
 			assert.NoError(t, err)
 			assert.Len(t, events, 3)
-			assert.True(t, proto.Equal(events[0], e1))
-			assert.True(t, proto.Equal(events[1], e2))
-			assert.True(t, proto.Equal(events[2], e3))
+			assert.EqualValues(t, e1, events[0])
+			assert.EqualValues(t, e2, events[1])
+			assert.EqualValues(t, e3, events[2])
 
 			logs, err = currentStore.Logs(0, 20, "")
 			assert.NoError(t, err)
 			assert.Len(t, logs, 3)
 			assert.Equal(t, logs[0].Id, "1")
-			assert.True(t, proto.Equal(logs[0].Event, e1))
+			assert.EqualValues(t, e1, logs[0].Event)
+
 			assert.Equal(t, logs[1].Id, "2")
-			assert.True(t, proto.Equal(logs[1].Event, e2))
+			assert.EqualValues(t, e2, logs[1].Event)
+
 			assert.Equal(t, logs[2].Id, "3")
-			assert.True(t, proto.Equal(logs[2].Event, e3))
+			assert.EqualValues(t, e3, logs[2].Event)
 
 			logs, err = currentStore.Logs(2, 20, "")
 			assert.NoError(t, err)
 			assert.Len(t, logs, 2)
 
 			assert.Equal(t, logs[0].Id, "2")
-			assert.True(t, proto.Equal(logs[0].Event, e2))
+			assert.EqualValues(t, e2, logs[0].Event)
+
 			assert.Equal(t, logs[1].Id, "3")
-			assert.True(t, proto.Equal(logs[1].Event, e3))
+			assert.EqualValues(t, e3, logs[1].Event)
 
 			logs, err = currentStore.Logs(0, 2, "")
 			assert.NoError(t, err)
 			assert.Len(t, logs, 2)
 			assert.Equal(t, logs[0].Id, "1")
-			assert.True(t, proto.Equal(logs[0].Event, e1))
+			assert.EqualValues(t, e1, logs[0].Event)
 			assert.Equal(t, logs[1].Id, "2")
 
 			logs, err = currentStore.Logs(2, 1, "")
 			assert.NoError(t, err)
 			assert.Len(t, logs, 1)
 			assert.Equal(t, logs[0].Id, "2")
-			assert.True(t, proto.Equal(logs[0].Event, e2))
+			assert.EqualValues(t, e2, logs[0].Event)
 
 			// try to insert the same version again
 			err = currentStore.Append(e3)
 			assert.Error(t, err)
-
-			// SQLITE implementation is shit man !
-			// add a different originator
-			//originator2 := &common.Originator{
-			//	Id: uuid.Must(uuid.NewV4()).String(),
-			//}
-			//e11 := &store.Event{
-			//	Originator: &common.Originator{
-			//		Id:      originator2.Id,
-			//		Version: "1",
-			//	},
-			//	EventType: "Project.Created",
-			//	Payload:   "{}",
-			//}
-			//
-			//err = currentStore.Append(e11)
-			//assert.NoError(t, err)
-
 		})
 	}
 

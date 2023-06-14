@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/davecgh/go-spew/spew"
-	"github.com/makkalot/eskit/generated/grpc/go/common"
-	store "github.com/makkalot/eskit/generated/grpc/go/eventstore"
+	"github.com/makkalot/eskit/lib/common"
+	store "github.com/makkalot/eskit/lib/common"
 	"github.com/makkalot/eskit/lib/consumerstore"
 	"github.com/makkalot/eskit/lib/eventstore"
 	"github.com/stretchr/testify/assert"
@@ -81,7 +81,6 @@ func TestNewAppLogConsumerProgress(t *testing.T) {
 	err := estore.Append(e1)
 	assert.NoError(t, err)
 
-
 	ctx, cancel := context.WithCancel(context.Background())
 	consumer, err := NewAppLogConsumer(estore, consumerStore, "users-consumer", FromSaved, "*")
 	assert.NoError(t, err)
@@ -103,7 +102,6 @@ func TestNewAppLogConsumerProgress(t *testing.T) {
 
 	err = estore.Append(e2)
 	assert.NoError(t, err)
-
 
 	ctx, cancel = context.WithCancel(context.Background())
 	err = consumer.Consume(ctx, func(entry *store.AppLogEntry) error {
