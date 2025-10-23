@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/makkalot/eskit/generated/grpc/go/common"
 	eventstore2 "github.com/makkalot/eskit/lib/eventstore"
+	"github.com/makkalot/eskit/lib/types"
 	uuid "github.com/satori/go.uuid"
 	"log"
 	"reflect"
@@ -17,10 +17,10 @@ var (
 )
 
 type Client interface {
-	Create(msg interface{}) (*common.Originator, error)
-	Get(originator *common.Originator, msg interface{}, deleted bool) error
-	Update(msg interface{}) (*common.Originator, error)
-	Delete(originator *common.Originator, msg interface{}) (*common.Originator, error)
+	Create(msg interface{}) (*types.Originator, error)
+	Get(originator *types.Originator, msg interface{}, deleted bool) error
+	Update(msg interface{}) (*types.Originator, error)
+	Delete(originator *types.Originator, msg interface{}) (*types.Originator, error)
 	ListWithPagination(result interface{}, fromID string, size int) (string, error)
 }
 
@@ -63,8 +63,8 @@ func (client *clientProvider) checkIfPtr(msg interface{}) error {
 
 // Create creates a new entry into crudstore for the given struct, it uses its structname for
 // entity type for now
-func (client *clientProvider) Create(msg interface{}) (*common.Originator, error) {
-	var originator *common.Originator
+func (client *clientProvider) Create(msg interface{}) (*types.Originator, error) {
+	var originator *types.Originator
 
 	if err := client.checkIfPtr(msg); err != nil {
 		return nil, err
@@ -76,8 +76,8 @@ func (client *clientProvider) Create(msg interface{}) (*common.Originator, error
 	}
 
 	if originator == nil {
-		originator = &common.Originator{
-			Id:      uuid.Must(uuid.NewV4()).String(),
+		originator = &types.Originator{
+			ID:      uuid.Must(uuid.NewV4()).String(),
 			Version: "1",
 		}
 	}
@@ -100,7 +100,7 @@ func (client *clientProvider) Create(msg interface{}) (*common.Originator, error
 	return originator, nil
 }
 
-func (client *clientProvider) Get(originator *common.Originator, msg interface{}, deleted bool) error {
+func (client *clientProvider) Get(originator *types.Originator, msg interface{}, deleted bool) error {
 	if originator == nil {
 		return fmt.Errorf("empty originator : %w", InvalidArgumentError)
 	}
@@ -129,8 +129,8 @@ func (client *clientProvider) Get(originator *common.Originator, msg interface{}
 }
 
 // Update updates the object, it should have the originator set
-func (client *clientProvider) Update(msg interface{}) (*common.Originator, error) {
-	var originator *common.Originator
+func (client *clientProvider) Update(msg interface{}) (*types.Originator, error) {
+	var originator *types.Originator
 	var ok bool
 
 	originator, ok = client.extractOriginatorFromMsg(msg)
@@ -165,7 +165,7 @@ func (client *clientProvider) Update(msg interface{}) (*common.Originator, error
 	return updatedOriginator, nil
 }
 
-func (client *clientProvider) Delete(originator *common.Originator, msg interface{}) (*common.Originator, error) {
+func (client *clientProvider) Delete(originator *types.Originator, msg interface{}) (*types.Originator, error) {
 	if originator == nil {
 		return nil, fmt.Errorf("empty originator")
 	}
@@ -211,7 +211,7 @@ func (client *clientProvider) ListWithPagination(result interface{}, fromID stri
 	}
 
 	i := 0
-	var latestOriginator *common.Originator
+	var latestOriginator *types.Originator
 	for _, resOriginator := range results {
 		elemp := reflect.New(elemt.Elem())
 		msg := elemp.Interface()
@@ -249,7 +249,7 @@ func (client *clientProvider) ListWithPagination(result interface{}, fromID stri
 	return lastID, nil
 }
 
-func (client *clientProvider) setOriginatorForMsg(msg interface{}, originator *common.Originator) error {
+func (client *clientProvider) setOriginatorForMsg(msg interface{}, originator *types.Originator) error {
 	s := reflect.ValueOf(msg).Elem()
 	typeOfT := s.Type()
 
@@ -266,7 +266,7 @@ func (client *clientProvider) setOriginatorForMsg(msg interface{}, originator *c
 	return fmt.Errorf("originator field was not found in the message")
 }
 
-func (client *clientProvider) extractOriginatorFromMsg(msg interface{}) (*common.Originator, bool) {
+func (client *clientProvider) extractOriginatorFromMsg(msg interface{}) (*types.Originator, bool) {
 	s := reflect.ValueOf(msg).Elem()
 	typeOfT := s.Type()
 
@@ -276,7 +276,7 @@ func (client *clientProvider) extractOriginatorFromMsg(msg interface{}) (*common
 		//log.Println("Checking the field : ", typeOfT.Field(i).Name)
 		if typeOfT.Field(i).Name == "Originator" {
 			i := f.Interface()
-			originator, ok := i.(*common.Originator)
+			originator, ok := i.(*types.Originator)
 			//log.Println("Found the originator inside the message : ", originator)
 			return originator, ok
 		}
