@@ -2,10 +2,17 @@
 
 ## ESKIT (Event Sourcing Kit)
 
-Eskit is a collection of microservices built on top of Event Sourcing Idea. It can be useful
-for people who want to try out event sourcing. As Greg Young mentions in his talks if you write an event sourcing framework probably 
-you're doing something wrong. ESKIT is not an event sourcing framework, it's bunch of contracts (GRPC) with example implementation. 
+Eskit is an Event Sourcing toolkit that can be used in two modes:
+1. **As a Go library** - Embed event sourcing directly in your application (no gRPC/protobuf required)
+2. **As microservices** - Run as distributed gRPC services
 
+As Greg Young mentions in his talks, if you write an event sourcing framework you're probably doing something wrong.
+ESKIT is not a framework - it's a collection of libraries and optional microservices with gRPC contracts.
+
+### Version 2.0 - Library-First Architecture
+
+v2.0 introduces a major refactoring where the core library (`lib/`) is now **completely independent** of gRPC/protobuf.
+This means you can use ESKIT as a pure Go library without any code generation or network dependencies.
 
 #### What is ESKIT:
 
@@ -24,6 +31,107 @@ you're doing something wrong. ESKIT is not an event sourcing framework, it's bun
 - It's not production ready
 - It's not fast as Kafka.
 
+
+## Usage Modes
+
+### Mode 1: As a Go Library (Recommended for most use cases)
+
+Use ESKIT as an embedded library in your Go application. **No protobuf compilation or gRPC required.**
+
+```go
+package main
+
+import (
+    "context"
+    "time"
+
+    "github.com/makkalot/eskit/lib/eventstore"
+    "github.com/makkalot/eskit/lib/crudstore"
+    "github.com/makkalot/eskit/lib/types"
+)
+
+func main() {
+    // Create an in-memory event store (or use SQL store with PostgreSQL)
+    store := eventstore.NewInMemoryStore()
+
+    // Create events with native Go types
+    event := &types.Event{
+        Originator: &types.Originator{
+            ID:      "user-123",
+            Version: "1",
+        },
+        EventType:  "User.Created",
+        Payload:    `{"email":"user@example.com"}`,
+        OccurredOn: time.Now().UTC(),
+    }
+
+    // Append event to store
+    store.Append(event)
+
+    // Or use CRUD store for automatic event replay
+    ctx := context.Background()
+    crudClient, _ := crudstore.NewClient(ctx, "postgres://...")
+
+    // Define your entity type
+    type User struct {
+        Originator *types.Originator
+        Email      string
+        FirstName  string
+    }
+
+    user := &User{
+        Email:     "user@example.com",
+        FirstName: "John",
+    }
+
+    // CRUD operations automatically create events
+    originator, _ := crudClient.Create(user)
+}
+```
+
+**Benefits:**
+- ✅ No protobuf code generation needed
+- ✅ Pure Go types (no proto dependencies)
+- ✅ Easy to test and embed
+- ✅ Works offline (no network required)
+
+### Mode 2: As Microservices
+
+Run ESKIT components as separate gRPC microservices for distributed systems.
+
+**Requirements:**
+- Protobuf compiler (`protoc`)
+- gRPC Go plugins
+
+**Generate gRPC code:**
+```bash
+make generate-grpc
+```
+
+**Run services:**
+```bash
+# Via Docker Compose
+make deploy
+
+# Or via Kubernetes
+make deploy-minikube
+```
+
+**Benefits:**
+- ✅ Language-agnostic (gRPC clients in any language)
+- ✅ Service isolation and scalability
+- ✅ REST API via grpc-gateway
+
+**Note:** If using microservices, your client code will work with protobuf types and require code generation.
+
+## Migration from v1.x to v2.0
+
+See [MIGRATION.md](MIGRATION.md) for detailed migration guide.
+
+**Key breaking changes:**
+- Library now uses `lib/types` instead of `generated/grpc/go/*`
+- Field names follow Go conventions: `.Id` → `.ID`
+- Timestamp fields use `time.Time` instead of Unix `int64`
 
 ### Architecture Overview
 
