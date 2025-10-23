@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/makkalot/eskit/generated/grpc/go/eventstore"
 	"github.com/makkalot/eskit/lib/common"
 	"github.com/makkalot/eskit/lib/consumerstore"
 	"github.com/makkalot/eskit/lib/crudstore"
-	eventstore2 "github.com/makkalot/eskit/lib/eventstore"
+	"github.com/makkalot/eskit/lib/eventstore"
+	"github.com/makkalot/eskit/lib/types"
 	"io"
 	"log"
 	"strconv"
@@ -23,7 +23,7 @@ type AppLogConsumer struct {
 	name          string
 	offset        LogOffset
 	consumerStore consumerstore.Store
-	storeClient   eventstore2.Store
+	storeClient   eventstore.Store
 	selector      string
 }
 
@@ -39,10 +39,10 @@ var (
 	StopConsumerError = errors.New("stop consumer error")
 )
 
-type ConsumeCB func(entry *eventstore.AppLogEntry) error
+type ConsumeCB func(entry *types.AppLogEntry) error
 type ConsumeCrudCb func(entityType string, oldMessage, newMessage interface{})
 
-func NewAppLogConsumer(storeClient eventstore2.Store, consumerStore consumerstore.Store, name string, offset LogOffset, selector string) (*AppLogConsumer, error) {
+func NewAppLogConsumer(storeClient eventstore.Store, consumerStore consumerstore.Store, name string, offset LogOffset, selector string) (*AppLogConsumer, error) {
 	return &AppLogConsumer{
 		name:          name,
 		offset:        offset,
@@ -71,7 +71,7 @@ func (consumer *AppLogConsumer) Consume(ctx context.Context, cb ConsumeCB) error
 			}
 
 			if err := common.RetryShort(func() error {
-				return consumer.SaveProgress(ctx, entry.Id)
+				return consumer.SaveProgress(ctx, entry.ID)
 			}); err != nil {
 				return err
 			}
@@ -90,10 +90,10 @@ func (consumer *AppLogConsumer) Consume(ctx context.Context, cb ConsumeCB) error
 	}
 }
 
-func (consumer *AppLogConsumer) Stream(ctx context.Context) (chan *eventstore.AppLogEntry, chan error, error) {
-	req := &eventstore.AppLogRequest{}
+func (consumer *AppLogConsumer) Stream(ctx context.Context) (chan *types.AppLogEntry, chan error, error) {
+	var fromID string
 	if consumer.offset == FromBeginning {
-		req.FromId = "1"
+		fromID = "1"
 	} else if consumer.offset == FromSaved {
 		resp, err := consumer.consumerStore.GetLogConsume(
 			ctx,
@@ -103,7 +103,7 @@ func (consumer *AppLogConsumer) Stream(ctx context.Context) (chan *eventstore.Ap
 			if !errors.Is(err, crudstore.RecordNotFound) {
 				return nil, nil, err
 			}
-			req.FromId = "1"
+			fromID = "1"
 		} else {
 			offsetInt, err := strconv.ParseInt(resp.Offset, 10, 64)
 			if err != nil {
@@ -113,24 +113,20 @@ func (consumer *AppLogConsumer) Stream(ctx context.Context) (chan *eventstore.Ap
 			// we want to start from the next id to skip the last saved so
 			// we don't process duplicates again
 			offsetInt += 1
-			req.FromId = strconv.Itoa(int(offsetInt))
+			fromID = strconv.Itoa(int(offsetInt))
 		}
 
-		log.Println("starting the consuming from offset : ", req.FromId)
+		log.Println("starting the consuming from offset : ", fromID)
 	} else {
 		return nil, nil, fmt.Errorf("invalid offset supplied")
 	}
 
-	if consumer.selector != "*" && consumer.selector != "" {
-		req.Selector = consumer.selector
-	}
-
-	offsetInt, err := strconv.ParseInt(req.FromId, 10, 64)
+	offsetInt, err := strconv.ParseInt(fromID, 10, 64)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	ch := make(chan *eventstore.AppLogEntry)
+	ch := make(chan *types.AppLogEntry)
 	chErr := make(chan error)
 	lastIDInt := offsetInt
 
@@ -166,7 +162,7 @@ func (consumer *AppLogConsumer) Stream(ctx context.Context) (chan *eventstore.Ap
 					ch <- r
 				}
 
-				nextID := results[len(results)-1].Id
+				nextID := results[len(results)-1].ID
 				nextIDInt, err := strconv.ParseUint(nextID, 10, 64)
 				if err != nil {
 					chErr <- fmt.Errorf("invalid fromID : %v", err)
