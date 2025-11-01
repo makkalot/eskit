@@ -188,8 +188,7 @@ General Microservice Architecture looks like :
 ## To Run It Locally:
 
 ##### Requirements :
-- docker
-- docker-compose
+- docker (with compose plugin)
 
 ##### Run Tests Locally (in docker compose):
 - `make test`

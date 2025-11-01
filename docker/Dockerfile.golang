@@ -1,11 +1,9 @@
-FROM golang:1.17-stretch
+FROM golang:1.25-bookworm
 
 RUN apt-get update && apt-get install -y curl
 
 ENV GOBIN /go/bin
 
-RUN go get github.com/onsi/ginkgo/v2 && \
-    go get github.com/onsi/gomega && \
-    go install github.com/onsi/ginkgo/v2/ginkgo@latest
+RUN go install github.com/onsi/ginkgo/v2/ginkgo@latest
 
 RUN ginkgo version
