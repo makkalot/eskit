@@ -1,5 +1,3 @@
 FROM docker:stable
 
-RUN apk update &&  apk add make && apk add bash && apk add --no-cache openssl ca-certificates curl py-pip
-RUN pip install --upgrade pip \
-    && pip install docker-compose
+RUN apk update &&  apk add make && apk add bash && apk add --no-cache openssl ca-certificates curl docker-cli-compose

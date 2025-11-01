@@ -4,8 +4,7 @@ import (
 	"errors"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
-	"github.com/makkalot/eskit/generated/grpc/go/common"
-	store "github.com/makkalot/eskit/generated/grpc/go/eventstore"
+	"github.com/makkalot/eskit/lib/types"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -31,9 +30,9 @@ var (
 var ErrDuplicate = errors.New("duplicate")
 
 type Store interface {
-	Append(event *store.Event) error
-	Get(originator *common.Originator, fromVersion bool) ([]*store.Event, error)
-	Logs(fromID uint64, size uint32, pipelineID string) ([]*store.AppLogEntry, error)
+	Append(event *types.Event) error
+	Get(originator *types.Originator, fromVersion bool) ([]*types.Event, error)
+	Logs(fromID uint64, size uint32, pipelineID string) ([]*types.AppLogEntry, error)
 }
 
 // StoreWithCleanup has the same methods as Store but also has Cleanup method

@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jinzhu/copier"
-	"github.com/makkalot/eskit/generated/grpc/go/common"
-	eskitcommon "github.com/makkalot/eskit/lib/common"
+	"github.com/makkalot/eskit/lib/common"
 	eventstore2 "github.com/makkalot/eskit/lib/eventstore"
+	"github.com/makkalot/eskit/lib/types"
 	uuid "github.com/satori/go.uuid"
 	"github.com/stretchr/testify/assert"
 	"os"
@@ -22,7 +22,7 @@ func TestMain(m *testing.M) {
 }
 
 type User struct {
-	Originator *common.Originator
+	Originator *types.Originator
 	Email      string
 	FirstName  string
 	LastName   string
@@ -55,8 +55,8 @@ func TestCrudAdd(t *testing.T) {
 		{
 			Name: "non pointer",
 			inputUser: User{
-				Originator: &common.Originator{
-					Id:      uuid.Must(uuid.NewV4()).String(),
+				Originator: &types.Originator{
+					ID:      uuid.Must(uuid.NewV4()).String(),
 					Version: "1",
 				},
 				Email: "makkalotsomething@gmail.com",
@@ -66,8 +66,8 @@ func TestCrudAdd(t *testing.T) {
 		{
 			Name: "success",
 			inputUser: &User{
-				Originator: &common.Originator{
-					Id:      uuid.Must(uuid.NewV4()).String(),
+				Originator: &types.Originator{
+					ID:      uuid.Must(uuid.NewV4()).String(),
 					Version: "1",
 				},
 				Email:  "makkalotwork@gmail.com",
@@ -85,7 +85,7 @@ func TestCrudAdd(t *testing.T) {
 					return fmt.Errorf("equalcb : originator is empty")
 				}
 
-				if actualUser.Originator.Id == "" || actualUser.Originator.Version == "" {
+				if actualUser.Originator.ID == "" || actualUser.Originator.Version == "" {
 					return fmt.Errorf("equalCB: empty fields in originator : %+v", actualUser.Originator)
 				}
 
@@ -162,14 +162,14 @@ func TestCrudUpdate(t *testing.T) {
 	updatedOriginator, err := client.Update(&user)
 	assert.NoError(t, err, "first update failed")
 	assert.NotNil(t, updatedOriginator, "updated originator empty")
-	assert.Equal(t, updatedOriginator.Id, originator.Id)
-	assert.Equal(t, updatedOriginator.Version, eskitcommon.MustIncrStringInt(originator.Version))
-	assert.Equal(t, user.Originator.Version, eskitcommon.MustIncrStringInt(originator.Version))
-	assert.Equal(t, user.Originator.Id, originator.Id)
+	assert.Equal(t, updatedOriginator.ID, originator.ID)
+	assert.Equal(t, updatedOriginator.Version, common.MustIncrStringInt(originator.Version))
+	assert.Equal(t, user.Originator.Version, common.MustIncrStringInt(originator.Version))
+	assert.Equal(t, user.Originator.ID, originator.ID)
 
 	// get the latest version of
 	var updatedUser User
-	getErr := client.Get(&common.Originator{Id: originator.Id}, &updatedUser, false)
+	getErr := client.Get(&types.Originator{ID: originator.ID}, &updatedUser, false)
 	assert.NoError(t, getErr, "fetching updated record failed")
 	assert.Equal(t, updatedOriginator, updatedUser.Originator, "originator mismatch")
 	assert.Equal(t, updatedUser, user, "user mismatch")
@@ -183,14 +183,13 @@ func TestCrudUpdate(t *testing.T) {
 
 	user.LastName = "LastName"
 	lastUpdatedOriginator, err := client.Update(&oldCopyUser)
-	assert.ErrorIs(t, err, eventstore2.ErrDuplicate,  "there should be version duplicate")
+	assert.ErrorIs(t, err, eventstore2.ErrDuplicate, "there should be version duplicate")
 	assert.Nil(t, lastUpdatedOriginator, "updated originator empty")
 
 }
 
-
 // tests the listing here
-func TestCrudList(t *testing.T){
+func TestCrudList(t *testing.T) {
 	sqlStore := eventstore2.NewInMemoryStore()
 	assert.NotNil(t, sqlStore)
 
@@ -252,7 +251,6 @@ func TestCrudList(t *testing.T){
 	assert.NoError(t, err, "creation for user 2 failed")
 	assert.NotNil(t, originatorTwo, "empty originator for user 2")
 
-
 	// try the pagination as well
 	t.Run("pagination test", func(tt *testing.T) {
 		lastOffsetID, listErr = client.ListWithPagination(&users, "", 1)
@@ -302,7 +300,7 @@ func TestCrudList(t *testing.T){
 }
 
 // tests the deletion
-func TestCrudDelete(t *testing.T){
+func TestCrudDelete(t *testing.T) {
 	sqlStore := eventstore2.NewInMemoryStore()
 	assert.NotNil(t, sqlStore)
 
@@ -318,7 +316,7 @@ func TestCrudDelete(t *testing.T){
 	client := NewClientWithStore(crudStore)
 
 	t.Run("delete non existing user", func(tt *testing.T) {
-		deleteOriginator, deleteErr := client.Delete(&common.Originator{Id: "non-existing"}, &User{})
+		deleteOriginator, deleteErr := client.Delete(&types.Originator{ID: "non-existing"}, &User{})
 		assert.ErrorIs(tt, deleteErr, RecordNotFound, "unexpected error")
 		assert.Nil(tt, deleteOriginator, "non empty originator")
 	})
@@ -340,11 +338,11 @@ func TestCrudDelete(t *testing.T){
 
 		// now if we fetch it the item should not come back
 		var userRetrieve User
-		getErr := client.Get(&common.Originator{Id: originatorDel.Id}, &userRetrieve, false)
+		getErr := client.Get(&types.Originator{ID: originatorDel.ID}, &userRetrieve, false)
 		assert.ErrorIs(tt, getErr, RecordDeleted)
 
 		// if we want to get the last version before it was deleted
-		getErr = client.Get(&common.Originator{Id: originatorDel.Id}, &userRetrieve, true)
+		getErr = client.Get(&types.Originator{ID: originatorDel.ID}, &userRetrieve, true)
 		assert.NoError(tt, getErr, "fetching deleted record failed")
 		assert.Equal(tt, userToDelete, userRetrieve)
 

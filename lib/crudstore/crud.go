@@ -4,10 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/makkalot/eskit/generated/grpc/go/common"
-	store "github.com/makkalot/eskit/generated/grpc/go/eventstore"
-	eskitcommon "github.com/makkalot/eskit/lib/common"
+	"github.com/makkalot/eskit/lib/common"
 	"github.com/makkalot/eskit/lib/eventstore"
+	"github.com/makkalot/eskit/lib/types"
 	"gopkg.in/evanphx/json-patch.v3"
 	"strconv"
 	"strings"
@@ -32,11 +31,11 @@ func IsDuplicate(err error) bool {
 }
 
 type CrudStore interface {
-	Create(entityType string, originator *common.Originator, payload string) error
-	Update(entityType string, originator *common.Originator, payload string) (*common.Originator, error)
-	Get(originator *common.Originator, deleted bool) (string, *common.Originator, error)
-	Delete(entityType string, originator *common.Originator) (*common.Originator, error)
-	List(entityType, fromID string, size int) ([]*common.Originator, string, error)
+	Create(entityType string, originator *types.Originator, payload string) error
+	Update(entityType string, originator *types.Originator, payload string) (*types.Originator, error)
+	Get(originator *types.Originator, deleted bool) (string, *types.Originator, error)
+	Delete(entityType string, originator *types.Originator) (*types.Originator, error)
+	List(entityType, fromID string, size int) ([]*types.Originator, string, error)
 }
 
 type CrudStoreProvider struct {
@@ -51,7 +50,7 @@ func NewCrudStoreProvider(ctx context.Context, estore eventstore.Store) (CrudSto
 	}, nil
 }
 
-func (crud *CrudStoreProvider) Create(entityType string, originator *common.Originator, payload string) error {
+func (crud *CrudStoreProvider) Create(entityType string, originator *types.Originator, payload string) error {
 	if originator == nil {
 		return fmt.Errorf("empty originator")
 	}
@@ -60,23 +59,23 @@ func (crud *CrudStoreProvider) Create(entityType string, originator *common.Orig
 		originator.Version = "1"
 	}
 
-	event := &store.Event{
+	event := &types.Event{
 		Originator: originator,
 		EventType:  fmt.Sprintf("%s.Created", entityType),
 		Payload:    payload,
-		OccuredOn:  time.Now().UTC().Unix(),
+		OccurredOn: time.Now().UTC(),
 	}
 
 	//log.Printf("Appending Create Event : %s", spew.Sdump(event))
 	return crud.estore.Append(event)
 }
 
-func (crud *CrudStoreProvider) Update(entityType string, originator *common.Originator, payload string) (*common.Originator, error) {
+func (crud *CrudStoreProvider) Update(entityType string, originator *types.Originator, payload string) (*types.Originator, error) {
 	if originator.Version == "" {
 		return nil, fmt.Errorf("misisng version")
 	}
 
-	newOriginator, err := eskitcommon.IncrOriginator(originator)
+	newOriginator, err := common.IncrOriginator(originator)
 	if err != nil {
 		return nil, err
 	}
@@ -95,11 +94,11 @@ func (crud *CrudStoreProvider) Update(entityType string, originator *common.Orig
 	//log.Println("Patch : payload : ", string(payload))
 	//log.Println("Patch : patch : ", string(patch))
 
-	event := &store.Event{
+	event := &types.Event{
 		Originator: newOriginator,
 		EventType:  fmt.Sprintf("%s.Updated", entityType),
 		Payload:    string(patch),
-		OccuredOn:  time.Now().UTC().Unix(),
+		OccurredOn: time.Now().UTC(),
 	}
 
 	err = crud.estore.Append(event)
@@ -109,7 +108,7 @@ func (crud *CrudStoreProvider) Update(entityType string, originator *common.Orig
 	return newOriginator, nil
 }
 
-func (crud *CrudStoreProvider) Get(originator *common.Originator, deleted bool) (string, *common.Originator, error) {
+func (crud *CrudStoreProvider) Get(originator *types.Originator, deleted bool) (string, *types.Originator, error) {
 	events, err := crud.estore.Get(originator, false)
 	if err != nil {
 		return "", nil, err
@@ -167,7 +166,7 @@ func (crud *CrudStoreProvider) Get(originator *common.Originator, deleted bool) 
 
 }
 
-func (crud *CrudStoreProvider) List(entityType, fromID string, size int) ([]*common.Originator, string, error) {
+func (crud *CrudStoreProvider) List(entityType, fromID string, size int) ([]*types.Originator, string, error) {
 	if fromID == "" {
 		fromID = "0"
 	}
@@ -197,12 +196,12 @@ func (crud *CrudStoreProvider) List(entityType, fromID string, size int) ([]*com
 	}
 
 	found := map[string]bool{}
-	var preResults []*common.Originator
-	var results []*common.Originator
+	var preResults []*types.Originator
+	var results []*types.Originator
 	var lastID string
 
 	for _, entry := range logs {
-		originatorID := entry.Event.Originator.Id
+		originatorID := entry.Event.Originator.ID
 		if _, ok := found[originatorID]; ok {
 			if crud.isEventDeleted(entry.Event) {
 				delete(found, originatorID)
@@ -210,13 +209,13 @@ func (crud *CrudStoreProvider) List(entityType, fromID string, size int) ([]*com
 		} else {
 			if !crud.isEventDeleted(entry.Event) {
 				found[originatorID] = true
-				preResults = append(preResults, &common.Originator{
-					Id: originatorID,
+				preResults = append(preResults, &types.Originator{
+					ID: originatorID,
 				})
 			}
 		}
 
-		lastID = entry.Id
+		lastID = entry.ID
 		if len(found) >= size {
 			break
 		}
@@ -224,13 +223,13 @@ func (crud *CrudStoreProvider) List(entityType, fromID string, size int) ([]*com
 
 	// prepare the last result
 	for _, r := range preResults {
-		if _, ok := found[r.Id]; !ok {
+		if _, ok := found[r.ID]; !ok {
 			continue
 		}
 		results = append(results, r)
 	}
 
-	lastID, err = eskitcommon.IncrStringInt(lastID)
+	lastID, err = common.IncrStringInt(lastID)
 	if err != nil {
 		return nil, "", err
 	}
@@ -238,13 +237,13 @@ func (crud *CrudStoreProvider) List(entityType, fromID string, size int) ([]*com
 	return results, lastID, nil
 }
 
-func (crud *CrudStoreProvider) isEventDeleted(event *store.Event) bool {
-	eventType := eskitcommon.ExtractEventType(event)
+func (crud *CrudStoreProvider) isEventDeleted(event *types.Event) bool {
+	eventType := common.ExtractEventType(event)
 	return strings.ToLower(eventType) == "deleted"
 }
 
-func (crud *CrudStoreProvider) isCrudEvent(event *store.Event) bool {
-	eventType := eskitcommon.ExtractEventType(event)
+func (crud *CrudStoreProvider) isCrudEvent(event *types.Event) bool {
+	eventType := common.ExtractEventType(event)
 	switch strings.ToLower(eventType) {
 	case "created", "updated", "deleted":
 		return true
@@ -253,22 +252,22 @@ func (crud *CrudStoreProvider) isCrudEvent(event *store.Event) bool {
 	}
 }
 
-func (crud *CrudStoreProvider) Delete(entityType string, originator *common.Originator) (*common.Originator, error) {
+func (crud *CrudStoreProvider) Delete(entityType string, originator *types.Originator) (*types.Originator, error) {
 	_, latestOriginator, err := crud.Get(originator, false)
 	if err != nil {
 		return nil, err
 	}
 
-	newOriginator, err := eskitcommon.IncrOriginator(latestOriginator)
+	newOriginator, err := common.IncrOriginator(latestOriginator)
 	if err != nil {
 		return nil, err
 	}
 
-	event := &store.Event{
+	event := &types.Event{
 		Originator: newOriginator,
 		EventType:  fmt.Sprintf("%s.Deleted", entityType),
 		Payload:    "{}",
-		OccuredOn:  time.Now().UTC().Unix(),
+		OccurredOn: time.Now().UTC(),
 	}
 
 	err = crud.estore.Append(event)

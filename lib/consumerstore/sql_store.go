@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
-	eskitcommon "github.com/makkalot/eskit/lib/common"
+	"github.com/makkalot/eskit/lib/common"
 	"github.com/makkalot/eskit/lib/crudstore"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -51,7 +51,7 @@ type SQLConsumerApiProvider struct {
 func NewSQLConsumerApiProvider(dbURI string) (Store, error) {
 	var db *gorm.DB
 
-	err := eskitcommon.RetryNormal(func() error {
+	err := common.RetryNormal(func() error {
 		var err error
 		db, err = gorm.Open("postgres", dbURI)
 		if err != nil {

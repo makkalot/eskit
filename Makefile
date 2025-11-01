@@ -10,7 +10,7 @@ PROJECT_NAME=eskit
 HOSTNAME_SUFFIX=$(PROJECT_NAME).makkalot.com
 
 CI_JOB_ID?=eskit
-COMPOSE=docker-compose -p $(CI_JOB_ID)
+COMPOSE=docker compose -p $(CI_JOB_ID)
 COMMON_SH=source ./scripts/common.sh &&
 GINKGO_FOCUS?=integration
 
@@ -108,7 +108,7 @@ $(GO_BUILD_TARGETS): build-deps-go
 	mkdir -p ./bin
 	SERVICE_NAME=$(shell basename $@) && \
 	SERVICE_PATH=$(shell echo $@ | cut -c6-) && \
-	env CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ./bin/$$SERVICE_NAME ./services/$$SERVICE_PATH
+	env CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -buildvcs=false -o ./bin/$$SERVICE_NAME ./services/$$SERVICE_PATH
 
 .PHONY: build-deps-go
 build-deps-go: $(wildcard services/**/*.go) $(wildcard generated/grpc/go/**/*.go)
@@ -158,7 +158,7 @@ test-go-unit:
 
 .PHONY: test-go-integration
 test-go-integration:
-	cd tests && ginkgo -r -v --focus-file=$(GINKGO_FOCUS)
+	cd tests && ginkgo -r -v
 
 .PHONY: generate
 generate: generate-grpc generate-swagger

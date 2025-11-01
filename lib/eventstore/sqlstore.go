@@ -6,9 +6,8 @@ import (
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
-	"github.com/makkalot/eskit/generated/grpc/go/common"
-	store "github.com/makkalot/eskit/generated/grpc/go/eventstore"
-	common2 "github.com/makkalot/eskit/lib/common"
+	"github.com/makkalot/eskit/lib/common"
+	"github.com/makkalot/eskit/lib/types"
 	"github.com/prometheus/client_golang/prometheus"
 	"strconv"
 	"strings"
@@ -39,7 +38,7 @@ type SqlStore struct {
 func NewSqlStore(dialect string, dbURI string) (*SqlStore, error) {
 	var db *gorm.DB
 
-	err := common2.RetryNormal(func() error {
+	err := common.RetryNormal(func() error {
 		var err error
 		db, err = gorm.Open(dialect, dbURI)
 		if err != nil {
@@ -86,14 +85,14 @@ func (estore *SqlStore) Cleanup() error {
 	return nil
 }
 
-func (estore *SqlStore) Append(event *store.Event) error {
+func (estore *SqlStore) Append(event *types.Event) error {
 
 	intVersion, err := strconv.ParseUint(event.Originator.Version, 10, 64)
 	if err != nil {
 		return err
 	}
 	storedEvent := &StoredEvent{
-		OriginatorID:      event.Originator.Id,
+		OriginatorID:      event.Originator.ID,
 		OriginatorVersion: uint(intVersion),
 		EventType:         event.EventType,
 		Payload:           event.Payload,
@@ -101,7 +100,7 @@ func (estore *SqlStore) Append(event *store.Event) error {
 
 	//log.Println("stored event : ", spew.Sdump(storedEvent))
 
-	entityType := common2.ExtractEntityType(event)
+	entityType := common.ExtractEntityType(event)
 	jsonEvent, err := json.Marshal(event)
 	if err != nil {
 		return err
@@ -149,9 +148,9 @@ func (estore *SqlStore) Append(event *store.Event) error {
 	return tx.Commit().Error
 }
 
-func (estore *SqlStore) Get(originator *common.Originator, fromVersion bool) ([]*store.Event, error) {
+func (estore *SqlStore) Get(originator *types.Originator, fromVersion bool) ([]*types.Event, error) {
 	storedEvents := []*StoredEvent{}
-	q := estore.db.Where("originator_id = ?", originator.Id)
+	q := estore.db.Where("originator_id = ?", originator.ID)
 	if originator.Version != "" {
 		if !fromVersion {
 			q = q.Where("originator_version <= ?", originator.Version)
@@ -165,11 +164,11 @@ func (estore *SqlStore) Get(originator *common.Originator, fromVersion bool) ([]
 		return nil, fmt.Errorf("fetch : %v", err)
 	}
 
-	var events []*store.Event
+	var events []*types.Event
 	for _, es := range storedEvents {
-		events = append(events, &store.Event{
-			Originator: &common.Originator{
-				Id:      es.OriginatorID,
+		events = append(events, &types.Event{
+			Originator: &types.Originator{
+				ID:      es.OriginatorID,
 				Version: strconv.Itoa(int(es.OriginatorVersion)),
 			},
 			EventType: es.EventType,
@@ -180,7 +179,7 @@ func (estore *SqlStore) Get(originator *common.Originator, fromVersion bool) ([]
 	return events, nil
 }
 
-func (estore *SqlStore) Logs(fromID uint64, size uint32, pipelineID string) ([]*store.AppLogEntry, error) {
+func (estore *SqlStore) Logs(fromID uint64, size uint32, pipelineID string) ([]*types.AppLogEntry, error) {
 	storedLogs := []*StoredLogEntry{}
 	q := estore.db.Where("id >= ?", uint64(fromID))
 	if size == 0 {
@@ -196,14 +195,14 @@ func (estore *SqlStore) Logs(fromID uint64, size uint32, pipelineID string) ([]*
 		return nil, fmt.Errorf("fetch : %v", err)
 	}
 
-	var logs []*store.AppLogEntry
+	var logs []*types.AppLogEntry
 	for _, sl := range storedLogs {
-		event := &store.Event{}
+		event := &types.Event{}
 		if err := json.Unmarshal([]byte(sl.EventPayload), event); err != nil {
 			return nil, fmt.Errorf("unmarshall : %v", err)
 		}
-		logs = append(logs, &store.AppLogEntry{
-			Id:    strconv.FormatUint(sl.ID, 10),
+		logs = append(logs, &types.AppLogEntry{
+			ID:    strconv.FormatUint(sl.ID, 10),
 			Event: event,
 		})
 	}
