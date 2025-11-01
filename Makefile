@@ -10,7 +10,7 @@ PROJECT_NAME=eskit
 HOSTNAME_SUFFIX=$(PROJECT_NAME).makkalot.com
 
 CI_JOB_ID?=eskit
-COMPOSE=docker-compose -p $(CI_JOB_ID)
+COMPOSE=docker compose -p $(CI_JOB_ID)
 COMMON_SH=source ./scripts/common.sh &&
 GINKGO_FOCUS?=integration
 
@@ -158,7 +158,7 @@ test-go-unit:
 
 .PHONY: test-go-integration
 test-go-integration:
-	cd tests && ginkgo -r -v --focus-file=$(GINKGO_FOCUS)
+	cd tests && ginkgo -r -v
 
 .PHONY: generate
 generate: generate-grpc generate-swagger
