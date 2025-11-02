@@ -9,7 +9,6 @@ import (
 	"github.com/makkalot/eskit/lib/crudstore"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"strconv"
 )
 
 var (
@@ -40,7 +39,7 @@ var (
 
 type ConsumerEntry struct {
 	ID     string
-	Offset string `gorm:"type:varchar(100); not null"`
+	Offset uint64 `gorm:"type:bigint; not null"`
 }
 
 type SQLConsumerApiProvider struct {
@@ -79,7 +78,7 @@ func (consumer *SQLConsumerApiProvider) LogConsume(ctx context.Context, request 
 		return fmt.Errorf("missing consumer id")
 	}
 
-	if request.Offset == "" {
+	if request.Offset == 0 {
 		return fmt.Errorf("missing offset")
 	}
 
@@ -98,17 +97,12 @@ func (consumer *SQLConsumerApiProvider) LogConsume(ctx context.Context, request 
 		return fmt.Errorf("fetching record failed : %v", result.Error)
 	}
 
-	offsetFloat, err := strconv.ParseFloat(entry.Offset, 64)
-	if err != nil {
-		return fmt.Errorf("invalid offset : %v", err)
-	}
-
 	entry.Offset = request.Offset
 	if result := consumer.db.Save(entry); result.Error != nil {
 		return fmt.Errorf("updating record failed : %v", result.Error)
 	}
 
-	consumerProgress.With(prometheus.Labels{"consumer_name": entry.ID}).Set(offsetFloat)
+	consumerProgress.With(prometheus.Labels{"consumer_name": entry.ID}).Set(float64(request.Offset))
 	consumedCount.With(prometheus.Labels{"consumer_name": entry.ID}).Inc()
 	consumerLastSeen.With(prometheus.Labels{"consumer_name": entry.ID}).SetToCurrentTime()
 

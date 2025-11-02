@@ -34,7 +34,7 @@ func TestCrudStoreProvider_Create(t *testing.T) {
 			entityType: "User",
 			originator: &types.Originator{
 				ID:      uuid.Must(uuid.NewV4()).String(),
-				Version: "1",
+				Version: 1,
 			},
 			payload:     `{"name":"test"}`,
 			expectError: false,
@@ -97,7 +97,7 @@ func TestCrudStoreProvider_Update(t *testing.T) {
 			setup: func(store CrudStore) (*types.Originator, string) {
 				originator := &types.Originator{
 					ID:      uuid.Must(uuid.NewV4()).String(),
-					Version: "1",
+					Version: 1,
 				}
 				payload := `{"name":"original","age":30}`
 				err := store.Create("User", originator, payload)
@@ -116,7 +116,7 @@ func TestCrudStoreProvider_Update(t *testing.T) {
 			setup: func(store CrudStore) (*types.Originator, string) {
 				originator := &types.Originator{
 					ID:      uuid.Must(uuid.NewV4()).String(),
-					Version: "1",
+					Version: 1,
 				}
 				payload := `{"name":"original"}`
 				err := store.Create("User", originator, payload)
@@ -126,12 +126,12 @@ func TestCrudStoreProvider_Update(t *testing.T) {
 				return originator, payload
 			},
 			updateData: func(originator *types.Originator) (string, string) {
-				originator.Version = ""
+				originator.Version = 0
 				return "User", `{"name":"updated"}`
 			},
 			expectError: true,
 			errorCheck: func(err error) bool {
-				return err != nil && err.Error() == "misisng version"
+				return err != nil && err.Error() == "missing version"
 			},
 		},
 		{
@@ -139,7 +139,7 @@ func TestCrudStoreProvider_Update(t *testing.T) {
 			setup: func(store CrudStore) (*types.Originator, string) {
 				return &types.Originator{
 					ID:      uuid.Must(uuid.NewV4()).String(),
-					Version: "1",
+					Version: 1,
 				}, ""
 			},
 			updateData: func(originator *types.Originator) (string, string) {
@@ -172,7 +172,7 @@ func TestCrudStoreProvider_Update(t *testing.T) {
 				assert.NoError(t, err)
 				assert.NotNil(t, newOriginator)
 				assert.Equal(t, originator.ID, newOriginator.ID)
-				assert.Equal(t, "2", newOriginator.Version)
+				assert.Equal(t, uint64(2), newOriginator.Version)
 			}
 		})
 	}
@@ -192,7 +192,7 @@ func TestCrudStoreProvider_Get(t *testing.T) {
 			setup: func(store CrudStore, estore eventstore.Store) *types.Originator {
 				originator := &types.Originator{
 					ID:      uuid.Must(uuid.NewV4()).String(),
-					Version: "1",
+					Version: 1,
 				}
 				payload := `{"name":"test","age":30}`
 				err := store.Create("User", originator, payload)
@@ -216,7 +216,7 @@ func TestCrudStoreProvider_Get(t *testing.T) {
 			setup: func(store CrudStore, estore eventstore.Store) *types.Originator {
 				return &types.Originator{
 					ID:      uuid.Must(uuid.NewV4()).String(),
-					Version: "1",
+					Version: 1,
 				}
 			},
 			getDeleted:  false,
@@ -230,7 +230,7 @@ func TestCrudStoreProvider_Get(t *testing.T) {
 			setup: func(store CrudStore, estore eventstore.Store) *types.Originator {
 				originator := &types.Originator{
 					ID:      uuid.Must(uuid.NewV4()).String(),
-					Version: "1",
+					Version: 1,
 				}
 				err := store.Create("User", originator, `{"name":"test"}`)
 				if err != nil {
@@ -253,7 +253,7 @@ func TestCrudStoreProvider_Get(t *testing.T) {
 			setup: func(store CrudStore, estore eventstore.Store) *types.Originator {
 				originator := &types.Originator{
 					ID:      uuid.Must(uuid.NewV4()).String(),
-					Version: "1",
+					Version: 1,
 				}
 				err := store.Create("User", originator, `{"name":"test"}`)
 				if err != nil {
@@ -279,7 +279,7 @@ func TestCrudStoreProvider_Get(t *testing.T) {
 			setup: func(store CrudStore, estore eventstore.Store) *types.Originator {
 				originator := &types.Originator{
 					ID:      uuid.Must(uuid.NewV4()).String(),
-					Version: "1",
+					Version: 1,
 				}
 				err := store.Create("User", originator, `{"name":"v1","age":30}`)
 				if err != nil {
@@ -289,7 +289,7 @@ func TestCrudStoreProvider_Get(t *testing.T) {
 				if err != nil {
 					panic(err)
 				}
-				originator.Version = "1"
+				originator.Version = 1
 				return originator
 			},
 			getDeleted:  false,
@@ -306,13 +306,13 @@ func TestCrudStoreProvider_Get(t *testing.T) {
 			setup: func(store CrudStore, estore eventstore.Store) *types.Originator {
 				originator := &types.Originator{
 					ID:      uuid.Must(uuid.NewV4()).String(),
-					Version: "1",
+					Version: 1,
 				}
 				err := store.Create("User", originator, `{"name":"v1"}`)
 				if err != nil {
 					panic(err)
 				}
-				originator.Version = "5"
+				originator.Version = 5
 				return originator
 			},
 			getDeleted:  false,
@@ -362,7 +362,7 @@ func TestCrudStoreProvider_Delete(t *testing.T) {
 			setup: func(store CrudStore) *types.Originator {
 				originator := &types.Originator{
 					ID:      uuid.Must(uuid.NewV4()).String(),
-					Version: "1",
+					Version: 1,
 				}
 				err := store.Create("User", originator, `{"name":"test"}`)
 				if err != nil {
@@ -377,7 +377,7 @@ func TestCrudStoreProvider_Delete(t *testing.T) {
 			setup: func(store CrudStore) *types.Originator {
 				return &types.Originator{
 					ID:      uuid.Must(uuid.NewV4()).String(),
-					Version: "1",
+					Version: 1,
 				}
 			},
 			expectError: true,
@@ -390,7 +390,7 @@ func TestCrudStoreProvider_Delete(t *testing.T) {
 			setup: func(store CrudStore) *types.Originator {
 				originator := &types.Originator{
 					ID:      uuid.Must(uuid.NewV4()).String(),
-					Version: "1",
+					Version: 1,
 				}
 				err := store.Create("User", originator, `{"name":"test"}`)
 				if err != nil {
@@ -459,7 +459,7 @@ func TestCrudStoreProvider_List(t *testing.T) {
 			setup: func(store CrudStore) []string {
 				originator := &types.Originator{
 					ID:      uuid.Must(uuid.NewV4()).String(),
-					Version: "1",
+					Version: 1,
 				}
 				err := store.Create("User", originator, `{"name":"user1"}`)
 				if err != nil {
@@ -481,7 +481,7 @@ func TestCrudStoreProvider_List(t *testing.T) {
 				for i := 0; i < 5; i++ {
 					originator := &types.Originator{
 						ID:      uuid.Must(uuid.NewV4()).String(),
-						Version: "1",
+						Version: 1,
 					}
 					err := store.Create("User", originator, `{"name":"user"}`)
 					if err != nil {
@@ -505,7 +505,7 @@ func TestCrudStoreProvider_List(t *testing.T) {
 				for i := 0; i < 5; i++ {
 					originator := &types.Originator{
 						ID:      uuid.Must(uuid.NewV4()).String(),
-						Version: "1",
+						Version: 1,
 					}
 					err := store.Create("User", originator, `{"name":"user"}`)
 					if err != nil {
@@ -530,7 +530,7 @@ func TestCrudStoreProvider_List(t *testing.T) {
 				for i := 0; i < 3; i++ {
 					originator := &types.Originator{
 						ID:      uuid.Must(uuid.NewV4()).String(),
-						Version: "1",
+						Version: 1,
 					}
 					err := store.Create("User", originator, `{"name":"user"}`)
 					if err != nil {
@@ -561,7 +561,7 @@ func TestCrudStoreProvider_List(t *testing.T) {
 				for i := 0; i < 15; i++ {
 					originator := &types.Originator{
 						ID:      uuid.Must(uuid.NewV4()).String(),
-						Version: "1",
+						Version: 1,
 					}
 					err := store.Create("User", originator, `{"name":"user"}`)
 					if err != nil {

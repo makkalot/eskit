@@ -11,7 +11,6 @@ import (
 	"github.com/makkalot/eskit/lib/types"
 	"io"
 	"log"
-	"strconv"
 	"time"
 )
 
@@ -91,9 +90,9 @@ func (consumer *AppLogConsumer) Consume(ctx context.Context, cb ConsumeCB) error
 }
 
 func (consumer *AppLogConsumer) Stream(ctx context.Context) (chan *types.AppLogEntry, chan error, error) {
-	var fromID string
+	var fromID uint64
 	if consumer.offset == FromBeginning {
-		fromID = "1"
+		fromID = 1
 	} else if consumer.offset == FromSaved {
 		resp, err := consumer.consumerStore.GetLogConsume(
 			ctx,
@@ -103,17 +102,9 @@ func (consumer *AppLogConsumer) Stream(ctx context.Context) (chan *types.AppLogE
 			if !errors.Is(err, crudstore.RecordNotFound) {
 				return nil, nil, err
 			}
-			fromID = "1"
+			fromID = 1
 		} else {
-			offsetInt, err := strconv.ParseInt(resp.Offset, 10, 64)
-			if err != nil {
-				return nil, nil, err
-			}
-
-			// we want to start from the next id to skip the last saved so
-			// we don't process duplicates again
-			offsetInt += 1
-			fromID = strconv.Itoa(int(offsetInt))
+			fromID = resp.Offset + 1
 		}
 
 		log.Println("starting the consuming from offset : ", fromID)
@@ -121,14 +112,9 @@ func (consumer *AppLogConsumer) Stream(ctx context.Context) (chan *types.AppLogE
 		return nil, nil, fmt.Errorf("invalid offset supplied")
 	}
 
-	offsetInt, err := strconv.ParseInt(fromID, 10, 64)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	ch := make(chan *types.AppLogEntry)
 	chErr := make(chan error)
-	lastIDInt := offsetInt
+	lastIDInt := fromID
 
 	go func() {
 		defer func() {
@@ -146,7 +132,7 @@ func (consumer *AppLogConsumer) Stream(ctx context.Context) (chan *types.AppLogE
 
 			}
 
-			results, err := consumer.storeClient.Logs(uint64(lastIDInt), 10, "")
+			results, err := consumer.storeClient.Logs(lastIDInt, 10, "")
 			if err != nil {
 				chErr <- fmt.Errorf("fetch logs : %v", err)
 				return
@@ -163,13 +149,7 @@ func (consumer *AppLogConsumer) Stream(ctx context.Context) (chan *types.AppLogE
 				}
 
 				nextID := results[len(results)-1].ID
-				nextIDInt, err := strconv.ParseUint(nextID, 10, 64)
-				if err != nil {
-					chErr <- fmt.Errorf("invalid fromID : %v", err)
-				}
-
-				nextIDInt++
-				lastIDInt = int64(nextIDInt)
+				lastIDInt = nextID + 1
 			}
 		}
 
@@ -178,7 +158,7 @@ func (consumer *AppLogConsumer) Stream(ctx context.Context) (chan *types.AppLogE
 	return ch, chErr, nil
 }
 
-func (consumer *AppLogConsumer) SaveProgress(ctx context.Context, offset string) error {
+func (consumer *AppLogConsumer) SaveProgress(ctx context.Context, offset uint64) error {
 	err := consumer.consumerStore.LogConsume(ctx, &consumerstore.AppLogConsumeProgress{
 		ConsumerId: consumer.name,
 		Offset:     offset,

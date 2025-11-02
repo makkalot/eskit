@@ -58,7 +58,7 @@ func TestSqlStore(tm *testing.T) {
 			e1 := &types.Event{
 				Originator: &types.Originator{
 					ID:      originator.ID,
-					Version: "1",
+					Version: 1,
 				},
 				EventType:  "Project.Created",
 				Payload:    "{}",
@@ -82,7 +82,7 @@ func TestSqlStore(tm *testing.T) {
 			logs, err = currentStore.Logs(0, 20, "")
 			assert.NoError(t, err)
 			assert.Len(t, logs, 1)
-			assert.Equal(t, logs[0].ID, "1")
+			assert.Equal(t, logs[0].ID, uint64(1))
 			assert.Equal(t, e1.Originator.ID, logs[0].Event.Originator.ID)
 
 			logs, err = currentStore.Logs(1, 20, "")
@@ -95,7 +95,7 @@ func TestSqlStore(tm *testing.T) {
 			e2 := &types.Event{
 				Originator: &types.Originator{
 					ID:      originator.ID,
-					Version: "2",
+					Version: 2,
 				},
 				EventType:  "Project.Updated",
 				Payload:    "{}",
@@ -116,7 +116,7 @@ func TestSqlStore(tm *testing.T) {
 
 			events, err = currentStore.Get(&types.Originator{
 				ID:      originator.ID,
-				Version: "1",
+				Version: 1,
 			}, false)
 
 			assert.NoError(t, err)
@@ -125,7 +125,7 @@ func TestSqlStore(tm *testing.T) {
 
 			events, err = currentStore.Get(&types.Originator{
 				ID:      originator.ID,
-				Version: "2",
+				Version: 2,
 			}, true)
 
 			assert.NoError(t, err)
@@ -135,22 +135,22 @@ func TestSqlStore(tm *testing.T) {
 			logs, err = currentStore.Logs(0, 20, "")
 			assert.NoError(t, err)
 			assert.Len(t, logs, 2)
-			assert.Equal(t, logs[0].ID, "1")
+			assert.Equal(t, logs[0].ID, uint64(1))
 			assert.Equal(t, e1.EventType, logs[0].Event.EventType)
-			assert.Equal(t, logs[1].ID, "2")
+			assert.Equal(t, logs[1].ID, uint64(2))
 			assert.Equal(t, e2.EventType, logs[1].Event.EventType)
 
 			logs, err = currentStore.Logs(2, 20, "")
 			assert.NoError(t, err)
 			assert.Len(t, logs, 1)
 
-			assert.Equal(t, logs[0].ID, "2")
+			assert.Equal(t, logs[0].ID, uint64(2))
 			assert.Equal(t, e2.EventType, logs[0].Event.EventType)
 
 			e3 := &types.Event{
 				Originator: &types.Originator{
 					ID:      originator.ID,
-					Version: "3",
+					Version: 3,
 				},
 				EventType:  "Project.Deleted",
 				Payload:    "",
@@ -173,33 +173,33 @@ func TestSqlStore(tm *testing.T) {
 			logs, err = currentStore.Logs(0, 20, "")
 			assert.NoError(t, err)
 			assert.Len(t, logs, 3)
-			assert.Equal(t, logs[0].ID, "1")
+			assert.Equal(t, logs[0].ID, uint64(1))
 			assert.Equal(t, e1.EventType, logs[0].Event.EventType)
-			assert.Equal(t, logs[1].ID, "2")
+			assert.Equal(t, logs[1].ID, uint64(2))
 			assert.Equal(t, e2.EventType, logs[1].Event.EventType)
-			assert.Equal(t, logs[2].ID, "3")
+			assert.Equal(t, logs[2].ID, uint64(3))
 			assert.Equal(t, e3.EventType, logs[2].Event.EventType)
 
 			logs, err = currentStore.Logs(2, 20, "")
 			assert.NoError(t, err)
 			assert.Len(t, logs, 2)
 
-			assert.Equal(t, logs[0].ID, "2")
+			assert.Equal(t, logs[0].ID, uint64(2))
 			assert.Equal(t, e2.EventType, logs[0].Event.EventType)
-			assert.Equal(t, logs[1].ID, "3")
+			assert.Equal(t, logs[1].ID, uint64(3))
 			assert.Equal(t, e3.EventType, logs[1].Event.EventType)
 
 			logs, err = currentStore.Logs(0, 2, "")
 			assert.NoError(t, err)
 			assert.Len(t, logs, 2)
-			assert.Equal(t, logs[0].ID, "1")
+			assert.Equal(t, logs[0].ID, uint64(1))
 			assert.Equal(t, e1.EventType, logs[0].Event.EventType)
-			assert.Equal(t, logs[1].ID, "2")
+			assert.Equal(t, logs[1].ID, uint64(2))
 
 			logs, err = currentStore.Logs(2, 1, "")
 			assert.NoError(t, err)
 			assert.Len(t, logs, 1)
-			assert.Equal(t, logs[0].ID, "2")
+			assert.Equal(t, logs[0].ID, uint64(2))
 			assert.Equal(t, e2.EventType, logs[0].Event.EventType)
 
 			// try to insert the same version again

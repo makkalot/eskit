@@ -6,7 +6,7 @@ import (
 
 type AppLogConsumeProgress struct {
 	ConsumerId string `json:"consumer_id"`
-	Offset     string `json:"offset"`
+	Offset     uint64 `json:"offset"`
 }
 
 type Store interface {
