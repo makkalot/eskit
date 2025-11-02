@@ -3,16 +3,11 @@ package main
 import (
 	"context"
 	"github.com/go-ozzo/ozzo-validation"
-	"github.com/grpc-ecosystem/go-grpc-prometheus"
-	"github.com/makkalot/eskit/generated/grpc/go/users"
 	"github.com/makkalot/eskit/lib/crudstore"
 	"github.com/makkalot/eskit/services/users/provider"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/viper"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
 	"log"
-	"net"
 	"net/http"
 )
 
@@ -30,7 +25,7 @@ func (c UserStoreConfig) Validate() error {
 
 func main() {
 
-	viper.SetDefault("listenAddr", ":9090")
+	viper.SetDefault("listenAddr", ":8080")
 	viper.BindEnv("dbUri", "DB_URI")
 
 	viper.SetConfigName("config")
@@ -53,12 +48,6 @@ func main() {
 	}
 
 	log.Println("Going to listen on : ", config.ListenAddr)
-	lis, err := net.Listen("tcp", config.ListenAddr)
-	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
-	}
-
-	s := grpc.NewServer()
 
 	crudStoreClient, err := crudstore.NewClient(context.Background(), config.DbUri)
 	if err != nil {
@@ -70,15 +59,33 @@ func main() {
 		log.Fatalf("user provider failed initializing : %v", err)
 	}
 
-	grpc_prometheus.Register(s)
-	http.Handle("/metrics", promhttp.Handler())
-	go func() {
-		http.ListenAndServe(":8888", nil)
-	}()
+	// Setup REST API routes
+	mux := http.NewServeMux()
 
-	reflection.Register(s)
-	users.RegisterUserServiceServer(s, userProvider)
-	if err := s.Serve(lis); err != nil {
+	// Health endpoint
+	mux.HandleFunc("/v1/health", userProvider.HealthHandler)
+
+	// User CRUD endpoints
+	mux.HandleFunc("/v1/users", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			userProvider.CreateUserHandler(w, r)
+		case http.MethodGet:
+			userProvider.GetUserHandler(w, r)
+		case http.MethodPut:
+			userProvider.UpdateUserHandler(w, r)
+		case http.MethodDelete:
+			userProvider.DeleteUserHandler(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	// Prometheus metrics endpoint
+	mux.Handle("/metrics", promhttp.Handler())
+
+	log.Printf("Starting REST API server on %s", config.ListenAddr)
+	if err := http.ListenAndServe(config.ListenAddr, mux); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}
 }

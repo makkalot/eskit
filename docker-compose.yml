@@ -24,9 +24,8 @@ services:
       dockerfile: "./services/users/Dockerfile"
       context: "."
     ports:
-      - "9090"
+      - "8080"
     environment:
-      - CRUDSTORE_ENDPOINT=crudstore:9090
       - DB_URI=host=db port=5432 user=postgres dbname=eventsourcing password=t00r sslmode=disable
 
     links:
@@ -41,7 +40,7 @@ services:
     working_dir: "/go/src/github.com/makkalot/eskit"
     command: "make test-go-integration"
     environment:
-      - USERS_ENDPOINT=users:9090
+      - USERS_ENDPOINT=users:8080
     links:
       - db
       - users
