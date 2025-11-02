@@ -2,41 +2,37 @@
 
 ## ESKIT (Event Sourcing Kit)
 
-Eskit is an Event Sourcing toolkit that can be used in two modes:
-1. **As a Go library** - Embed event sourcing directly in your application (no gRPC/protobuf required)
-2. **As microservices** - Run as distributed gRPC services
+ESKIT is an Event Sourcing toolkit designed to be used as a **pure Go library** for embedding event sourcing capabilities directly into your applications.
 
 As Greg Young mentions in his talks, if you write an event sourcing framework you're probably doing something wrong.
-ESKIT is not a framework - it's a collection of libraries and optional microservices with gRPC contracts.
+ESKIT is not a framework - it's a lightweight library with example services that demonstrate how to build REST APIs on top of it.
 
 ### Version 2.0 - Library-First Architecture
 
-v2.0 introduces a major refactoring where the core library (`lib/`) is now **completely independent** of gRPC/protobuf.
-This means you can use ESKIT as a pure Go library without any code generation or network dependencies.
+v2.0 is a complete refactoring where the core library (`lib/`) is **completely independent** of any RPC framework.
+The library uses pure Go types with no external protocol dependencies (no gRPC, no protobuf).
 
 #### What is ESKIT:
 
-- Event Sourcing Service (Append, Get operations) with Application Log (from Vaughn Vernon's book)
-- CRUD Service : Uses ES service with predefined event types and does the replay for the user.
-- Consumer Service to track the progress of Application Log
-- Go and Python consumers to process the events from ES and Application Log
-- It's an easy way to have CQRS with consumers and event logs easily.
-- Makefile with lots of cool automations.
-- Supports both GRPC and REST (grpc-gw). 
-
+- **Event Store Library** - Append-only event storage with Application Log pattern (from Vaughn Vernon's book)
+- **CRUD Store Library** - Built on event store with predefined event types that handles replay automatically
+- **Consumer Library** - Process events from Application Log with offset tracking
+- **Example User Service** - Demonstrates building a JSON REST API on top of the library
+- Easy way to implement CQRS with event sourcing
+- Supports both in-memory and PostgreSQL storage backends
 
 #### What ESKIT is not
 
 - It's not an Event Sourcing Framework
 - It's not production ready
-- It's not fast as Kafka.
+- It's not a message broker like Kafka
 
 
-## Usage Modes
+## Usage
 
-### Mode 1: As a Go Library (Recommended for most use cases)
+### Library Usage (Recommended)
 
-Use ESKIT as an embedded library in your Go application. **No protobuf compilation or gRPC required.**
+Use ESKIT as an embedded library in your Go application. **No code generation or external protocols required.**
 
 ```go
 package main
@@ -90,39 +86,58 @@ func main() {
 ```
 
 **Benefits:**
-- ✅ No protobuf code generation needed
+- ✅ No code generation needed
 - ✅ Pure Go types (no proto dependencies)
 - ✅ Easy to test and embed
-- ✅ Works offline (no network required)
+- ✅ Framework-agnostic (use with any HTTP framework, gRPC, GraphQL, etc.)
 
-### Mode 2: As Microservices
+### Example REST API Service
 
-Run ESKIT components as separate gRPC microservices for distributed systems.
+The `services/users` directory contains an example REST API built on top of the ESKIT library, demonstrating how to create a real-world service.
 
-**Requirements:**
-- Protobuf compiler (`protoc`)
-- gRPC Go plugins
-
-**Generate gRPC code:**
+**REST API Endpoints (Port 8080):**
 ```bash
-make generate-grpc
+# Health check
+GET /v1/health
+
+# User CRUD operations
+POST   /v1/users                    # Create user
+GET    /v1/users?id=X&version=Y    # Get user
+PUT    /v1/users?id=X&version=Y    # Update user
+DELETE /v1/users?id=X&version=Y    # Delete user
+
+# Prometheus metrics
+GET /metrics
 ```
 
-**Run services:**
+**Example API calls:**
 ```bash
-# Via Docker Compose
-make deploy
+# Create a user
+curl -X POST http://localhost:8080/v1/users \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","firstName":"John","lastName":"Doe"}'
 
-# Or via Kubernetes
-make deploy-minikube
+# Get a user
+curl "http://localhost:8080/v1/users?id=USER_ID&version=1"
+
+# Update a user
+curl -X PUT "http://localhost:8080/v1/users?id=USER_ID&version=1" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"newemail@example.com","firstName":"Jane","active":true}'
 ```
 
-**Benefits:**
-- ✅ Language-agnostic (gRPC clients in any language)
-- ✅ Service isolation and scalability
-- ✅ REST API via grpc-gateway
+**Build and run:**
+```bash
+# Build the service
+make build-go
 
-**Note:** If using microservices, your client code will work with protobuf types and require code generation.
+# Run locally (requires PostgreSQL)
+export DB_URI="host=localhost port=5432 user=postgres dbname=eventsourcing password=pass sslmode=disable"
+./bin/users
+
+# Or via Docker Compose
+make deploy-compose
+```
 
 ## Migration from v1.x to v2.0
 
@@ -133,74 +148,107 @@ See [MIGRATION.md](MIGRATION.md) for detailed migration guide.
 - Field names follow Go conventions: `.Id` → `.ID`
 - Timestamp fields use `time.Time` instead of Unix `int64`
 
-### Architecture Overview
+## Architecture Overview
 
-The kit itself consists of 3 microservices and 1 consumer
+ESKIT is organized as a library-first toolkit with the following components:
 
-- Event Store
-- Crud Store
-- Consumer Store
-- Metrics Consumer
+### Core Libraries (lib/)
 
-## Event Store Service
+**Event Store (`lib/eventstore/`)**
+- Append-only event storage supporting `Append` and `Get` operations
+- Implements Application Log pattern (event stream similar to Kafka)
+- Events are written to both event store and application log in the same transaction
+- Consumers can poll the Application Log to process all events flowing through the system
+- Storage backends: In-memory (for testing) and PostgreSQL (for production)
 
-Event Store Service is an append only service where users can append predefined event data. It supports the usual
-2 operations `Append` and `Get`. It also adds a new concept called Application Log which is like an event stream (Kafka).
-Every time a new `Append` request is sent the event is written to event store and application log at the same time in the 
-same transaction. This is a trade off the service accepts in order to keep things simple instead of trying to implement
-distributed transactions and etc. Consumers can poll/stream (`LogsPoll`) on that Application Log and process all the events flowing through
-the system. The consumers are responsible for storing the offset of their their progress. ESKIT has a reference implementation of 
-consumer client where it sores its progress on `Consumer Store`.
+**CRUD Store (`lib/crudstore/`)**
+- Built on top of Event Store with automatic event replay
+- Supports 4 basic CRUD operations: Create, Read, Update, Delete
+- Uses 3 predefined event types: `Created`, `Updated`, `Deleted`
+- Automatically handles event replay to reconstruct current entity state
+- Stores only diffs (JSON Merge Patches) on updates, keeping storage efficient
+- Works like a NoSQL database with full history
+- Using CRUD Store is optional - you can use Event Store directly and handle replay yourself
+- Note: Snapshotting not yet implemented (planned for future)
 
+**Consumer Store (`lib/consumerstore/`)**
+- Tracks consumer progress when reading the Application Log
+- Stores consumer offsets so consumers can resume after crashes
+- Supports both in-memory and SQL storage backends
 
-## Crud Store Service
+**Consumer Library (`lib/consumer/`)**
+- Reference implementation for processing events from Application Log
+- Automatically manages offset tracking via Consumer Store
 
-Crud Store service is built on top of Event Store Service and uses it as data storage. It supports 4 basic CRUD operations
-and some listing capabilities. In general when implement Event Sourcing systems you have to have handlers that replay the events and create the 
-current state of the entities. What Crud Store does is, it has 3 (`Created`, `Updated`, `Deleted`) predefined event types and tries to do the replay for the user.
-On client facing side the user only sees real objects and no events, it's like a NoSQL database with history. When an update operation is
-sent only diff of previous state and new state is saved to the event store Event Store. Under the hood Crud Store uses `JSON Merge Patches` to replay the objects from 
-the diffs. Using Crud Store is totally optional, user can just use Event Store and do the replay by herself. 
-Currently Crud Store doesn't support Snapshotting, something to be added in the future.
+### Example Service (services/users/)
 
-Crud Store works with Json Payloads for CRUD operations. ESKIT also includes a Go client which works at Protobuf (Golang struct)
-level and does all the JSON conversion for the user.
+The User Service demonstrates how to build a REST API on top of ESKIT:
+- Uses CRUD Store library for data persistence
+- Exposes JSON REST API for user management
+- Shows how to integrate ESKIT into a real service
+- Includes Prometheus metrics integration
 
-
-## Consumer Store Service
-
-Consumer Store Service is simple service that helps consumers keep the progress when they read the Application Log.
-Its useful if consumer is crashed so can continue from where it left off.
-
-
-## Metrics Consumer
-
-Metrics Consumer is an example implementation of how to write consumers to process the Application Log.
-Currently it reads all of the events flowing and saves the metrics to Prometheus. Project all has grafana dashboards
-which can display some interesting facts about the events flowing in the systems.
-
-General Microservice Architecture looks like :
-
-![architecture](docs/images/arch.png)
+**Architecture Benefits:**
+- ✅ **No network calls needed** - Library runs in-process
+- ✅ **Framework agnostic** - Build REST APIs, gRPC services, GraphQL servers, or CLI tools
+- ✅ **Simple deployment** - Single binary with embedded library
+- ✅ **Easy testing** - Use in-memory store for fast unit tests
 
 
  
-## To Run It Locally:
+## Development and Testing
 
-##### Requirements :
-- docker (with compose plugin)
+### Requirements
+- Go 1.23 or later
+- Docker (with compose plugin) - for running integration tests
+- PostgreSQL - for production usage (optional, in-memory store available for development)
 
-##### Run Tests Locally (in docker compose):
-- `make test`
+### Build
 
-##### Deploy to Docker Compose Locally  :
-- `make deploy`
+```bash
+# Build the example user service
+make build-go
 
-##### Deploy to Minikube Locally (requires already running cluster):
-- `make deploy-minikube`
+# Binary will be created at ./bin/users
+```
 
-##### Deploy to DO (requires already running cluster):
-- `make deploy-do`
+### Run Tests
+
+```bash
+# Run unit tests (no Docker required)
+make test-go-unit
+
+# Run integration tests (requires Docker)
+make test
+
+# Run tests in Docker Compose
+make test-compose-go
+```
+
+### Run Example User Service Locally
+
+**Option 1: Using Docker Compose (easiest)**
+```bash
+make deploy-compose
+```
+This will start PostgreSQL and the user service. The API will be available at `http://localhost:8080`.
+
+**Option 2: Run locally (requires PostgreSQL)**
+```bash
+# Start PostgreSQL
+docker run -d -p 5432:5432 \
+  -e POSTGRES_PASSWORD=t00r \
+  -e POSTGRES_DB=eventsourcing \
+  postgres
+
+# Set database URI
+export DB_URI="host=localhost port=5432 user=postgres dbname=eventsourcing password=t00r sslmode=disable"
+
+# Run the service
+./bin/users
+```
+
+The service will start on port 8080 (configurable via `listenAddr` in config.yaml or environment).
 
 
 ### How to contribute ?
