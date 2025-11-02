@@ -9,7 +9,6 @@ import (
 	"github.com/makkalot/eskit/lib/common"
 	"github.com/makkalot/eskit/lib/types"
 	"github.com/prometheus/client_golang/prometheus"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -86,14 +85,9 @@ func (estore *SqlStore) Cleanup() error {
 }
 
 func (estore *SqlStore) Append(event *types.Event) error {
-
-	intVersion, err := strconv.ParseUint(event.Originator.Version, 10, 64)
-	if err != nil {
-		return err
-	}
 	storedEvent := &StoredEvent{
 		OriginatorID:      event.Originator.ID,
-		OriginatorVersion: uint(intVersion),
+		OriginatorVersion: uint(event.Originator.Version),
 		EventType:         event.EventType,
 		Payload:           event.Payload,
 	}
@@ -151,7 +145,7 @@ func (estore *SqlStore) Append(event *types.Event) error {
 func (estore *SqlStore) Get(originator *types.Originator, fromVersion bool) ([]*types.Event, error) {
 	storedEvents := []*StoredEvent{}
 	q := estore.db.Where("originator_id = ?", originator.ID)
-	if originator.Version != "" {
+	if originator.Version != 0 {
 		if !fromVersion {
 			q = q.Where("originator_version <= ?", originator.Version)
 		} else {
@@ -169,7 +163,7 @@ func (estore *SqlStore) Get(originator *types.Originator, fromVersion bool) ([]*
 		events = append(events, &types.Event{
 			Originator: &types.Originator{
 				ID:      es.OriginatorID,
-				Version: strconv.Itoa(int(es.OriginatorVersion)),
+				Version: uint64(es.OriginatorVersion),
 			},
 			EventType: es.EventType,
 			Payload:   es.Payload,
@@ -202,7 +196,7 @@ func (estore *SqlStore) Logs(fromID uint64, size uint32, pipelineID string) ([]*
 			return nil, fmt.Errorf("unmarshall : %v", err)
 		}
 		logs = append(logs, &types.AppLogEntry{
-			ID:    strconv.FormatUint(sl.ID, 10),
+			ID:    sl.ID,
 			Event: event,
 		})
 	}

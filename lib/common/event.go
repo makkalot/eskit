@@ -3,41 +3,18 @@ package common
 import (
 	"fmt"
 	"github.com/makkalot/eskit/lib/types"
-	"strconv"
 	"strings"
 )
 
-func IncrStringInt(s string) (string, error) {
-	versionInt, err := strconv.ParseUint(s, 10, 64)
-	if err != nil {
-		return "", fmt.Errorf("parse : %v", err)
-	}
-
-	versionInt++
-	return strconv.Itoa(int(versionInt)), nil
-}
-
-func MustIncrStringInt(s string) string {
-	newVersion, err := IncrStringInt(s)
-	if err != nil {
-		panic(fmt.Sprintf("incrementing version failed : %v", err))
-	}
-	return newVersion
-}
-
+// IncrOriginator creates a new Originator with an incremented version
 func IncrOriginator(originator *types.Originator) (*types.Originator, error) {
-	if originator.Version == "" {
+	if originator.Version == 0 {
 		return nil, fmt.Errorf("missing version")
-	}
-
-	newVersion, err := IncrStringInt(originator.Version)
-	if err != nil {
-		return nil, err
 	}
 
 	return &types.Originator{
 		ID:      originator.ID,
-		Version: newVersion,
+		Version: originator.Version + 1,
 	}, nil
 }
 

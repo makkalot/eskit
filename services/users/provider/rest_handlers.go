@@ -6,6 +6,7 @@ import (
 	"github.com/makkalot/eskit/lib/crudstore"
 	"github.com/makkalot/eskit/lib/types"
 	"net/http"
+	"strconv"
 )
 
 // REST API Request/Response types
@@ -105,12 +106,22 @@ func (u *UserServiceProvider) CreateUserHandler(w http.ResponseWriter, r *http.R
 func (u *UserServiceProvider) GetUserHandler(w http.ResponseWriter, r *http.Request) {
 	// Get ID and Version from query parameters
 	id := r.URL.Query().Get("id")
-	version := r.URL.Query().Get("version")
+	versionStr := r.URL.Query().Get("version")
 	fetchDeleted := r.URL.Query().Get("fetchDeleted") == "true"
 
 	if id == "" {
 		writeError(w, http.StatusBadRequest, "invalid_request", "Missing 'id' parameter")
 		return
+	}
+
+	var version uint64
+	if versionStr != "" {
+		v, err := strconv.ParseUint(versionStr, 10, 64)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_request", "Invalid 'version' parameter")
+			return
+		}
+		version = v
 	}
 
 	nativeOriginator := &types.Originator{
@@ -135,11 +146,21 @@ func (u *UserServiceProvider) GetUserHandler(w http.ResponseWriter, r *http.Requ
 func (u *UserServiceProvider) UpdateUserHandler(w http.ResponseWriter, r *http.Request) {
 	// Get ID and Version from query parameters
 	id := r.URL.Query().Get("id")
-	version := r.URL.Query().Get("version")
+	versionStr := r.URL.Query().Get("version")
 
 	if id == "" {
 		writeError(w, http.StatusBadRequest, "invalid_request", "Missing 'id' parameter")
 		return
+	}
+
+	var version uint64
+	if versionStr != "" {
+		v, err := strconv.ParseUint(versionStr, 10, 64)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_request", "Invalid 'version' parameter")
+			return
+		}
+		version = v
 	}
 
 	var req UpdateUserRequest
@@ -193,11 +214,21 @@ func (u *UserServiceProvider) UpdateUserHandler(w http.ResponseWriter, r *http.R
 func (u *UserServiceProvider) DeleteUserHandler(w http.ResponseWriter, r *http.Request) {
 	// Get ID and Version from query parameters
 	id := r.URL.Query().Get("id")
-	version := r.URL.Query().Get("version")
+	versionStr := r.URL.Query().Get("version")
 
 	if id == "" {
 		writeError(w, http.StatusBadRequest, "invalid_request", "Missing 'id' parameter")
 		return
+	}
+
+	var version uint64
+	if versionStr != "" {
+		v, err := strconv.ParseUint(versionStr, 10, 64)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_request", "Invalid 'version' parameter")
+			return
+		}
+		version = v
 	}
 
 	nativeOriginator := &types.Originator{

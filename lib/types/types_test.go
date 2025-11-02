@@ -8,19 +8,19 @@ import (
 
 func TestOriginator(t *testing.T) {
 	t.Run("NewOriginator creates valid instance", func(t *testing.T) {
-		orig := NewOriginator("test-id", "1")
+		orig := NewOriginator("test-id", 1)
 		if orig.ID != "test-id" {
 			t.Errorf("expected ID 'test-id', got '%s'", orig.ID)
 		}
-		if orig.Version != "1" {
-			t.Errorf("expected Version '1', got '%s'", orig.Version)
+		if orig.Version != 1 {
+			t.Errorf("expected Version 1, got %d", orig.Version)
 		}
 	})
 
 	t.Run("JSON serialization", func(t *testing.T) {
 		orig := &Originator{
 			ID:      "abc-123",
-			Version: "42",
+			Version: 42,
 		}
 
 		data, err := json.Marshal(orig)
@@ -38,14 +38,14 @@ func TestOriginator(t *testing.T) {
 			t.Errorf("ID mismatch: expected '%s', got '%s'", orig.ID, decoded.ID)
 		}
 		if decoded.Version != orig.Version {
-			t.Errorf("Version mismatch: expected '%s', got '%s'", orig.Version, decoded.Version)
+			t.Errorf("Version mismatch: expected %d, got %d", orig.Version, decoded.Version)
 		}
 	})
 }
 
 func TestEvent(t *testing.T) {
 	t.Run("NewEvent creates valid instance", func(t *testing.T) {
-		orig := NewOriginator("entity-1", "1")
+		orig := NewOriginator("entity-1", 1)
 		event := NewEvent(orig, "User.Created", `{"name":"test"}`)
 
 		if event.Originator.ID != "entity-1" {
@@ -85,7 +85,7 @@ func TestEvent(t *testing.T) {
 	})
 
 	t.Run("JSON serialization", func(t *testing.T) {
-		orig := NewOriginator("test-id", "5")
+		orig := NewOriginator("test-id", 5)
 		event := &Event{
 			Originator: orig,
 			EventType:  "Project.Updated",
@@ -115,12 +115,12 @@ func TestEvent(t *testing.T) {
 
 func TestAppLogEntry(t *testing.T) {
 	t.Run("NewAppLogEntry creates valid instance", func(t *testing.T) {
-		orig := NewOriginator("entity-1", "1")
+		orig := NewOriginator("entity-1", 1)
 		event := NewEvent(orig, "User.Created", `{"email":"test@example.com"}`)
-		entry := NewAppLogEntry("123", event)
+		entry := NewAppLogEntry(123, event)
 
-		if entry.ID != "123" {
-			t.Errorf("expected ID '123', got '%s'", entry.ID)
+		if entry.ID != 123 {
+			t.Errorf("expected ID 123, got %d", entry.ID)
 		}
 		if entry.Event == nil {
 			t.Error("Event should not be nil")
@@ -131,10 +131,10 @@ func TestAppLogEntry(t *testing.T) {
 	})
 
 	t.Run("JSON serialization", func(t *testing.T) {
-		orig := NewOriginator("test-id", "1")
+		orig := NewOriginator("test-id", 1)
 		event := NewEvent(orig, "Order.Placed", `{"total":100}`)
 		entry := &AppLogEntry{
-			ID:    "456",
+			ID:    456,
 			Event: event,
 		}
 
@@ -150,7 +150,7 @@ func TestAppLogEntry(t *testing.T) {
 		}
 
 		if decoded.ID != entry.ID {
-			t.Errorf("ID mismatch: expected '%s', got '%s'", entry.ID, decoded.ID)
+			t.Errorf("ID mismatch: expected %d, got %d", entry.ID, decoded.ID)
 		}
 		if decoded.Event.EventType != entry.Event.EventType {
 			t.Errorf("EventType mismatch")
@@ -201,7 +201,7 @@ func TestCrudEntitySpec(t *testing.T) {
 
 func TestCrudEntity(t *testing.T) {
 	t.Run("NewCrudEntity creates valid instance", func(t *testing.T) {
-		orig := NewOriginator("user-123", "3")
+		orig := NewOriginator("user-123", 3)
 		entity := NewCrudEntity("User", orig, `{"name":"Alice"}`, false)
 
 		if entity.EntityType != "User" {
@@ -219,7 +219,7 @@ func TestCrudEntity(t *testing.T) {
 	})
 
 	t.Run("JSON serialization", func(t *testing.T) {
-		orig := NewOriginator("order-456", "7")
+		orig := NewOriginator("order-456", 7)
 		entity := &CrudEntity{
 			EntityType: "Order",
 			Originator: orig,

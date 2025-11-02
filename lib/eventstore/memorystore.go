@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/makkalot/eskit/lib/common"
 	"github.com/makkalot/eskit/lib/types"
-	"strconv"
 )
 
 type InMemoryStore struct {
@@ -35,20 +34,11 @@ func (s *InMemoryStore) Append(event *types.Event) error {
 	events := s.eventStore[event.Originator.ID]
 	latestEvent := events[len(events)-1]
 	latestVersion := latestEvent.Originator.Version
-	latestVersionInt, err := strconv.ParseInt(latestVersion, 10, 64)
-	if err != nil {
-		return err
-	}
-
 	newVersion := event.Originator.Version
-	newVersionInt, err := strconv.ParseInt(newVersion, 10, 64)
-	if err != nil {
-		return err
-	}
 
-	if newVersionInt <= latestVersionInt {
+	if newVersion <= latestVersion {
 		//log.Println("current store is like : ", spew.Sdump(s.eventStore))
-		return fmt.Errorf("you apply version : %d, db version is : %d for %s: %w", newVersionInt, latestVersionInt, event.Originator.ID, ErrDuplicate)
+		return fmt.Errorf("you apply version : %d, db version is : %d for %s: %w", newVersion, latestVersion, event.Originator.ID, ErrDuplicate)
 	}
 
 	s.eventStore[event.Originator.ID] = append(s.eventStore[event.Originator.ID], event)
@@ -57,17 +47,12 @@ func (s *InMemoryStore) Append(event *types.Event) error {
 }
 
 func (s *InMemoryStore) appendLog(event *types.Event) error {
-	var latestID string
+	var latestID uint64
 	if len(s.logs) == 0 {
-		latestID = "1"
+		latestID = 1
 	} else {
 		latestLog := s.logs[len(s.logs)-1]
-		latestIDInt, err := strconv.ParseInt(latestLog.ID, 10, 64)
-		if err != nil {
-			return err
-		}
-		latestIDInt++
-		latestID = strconv.Itoa(int(latestIDInt))
+		latestID = latestLog.ID + 1
 	}
 
 	s.logs = append(s.logs, &types.AppLogEntry{
@@ -87,30 +72,20 @@ func (s *InMemoryStore) Get(originator *types.Originator, fromVersion bool) ([]*
 	}
 
 	eventVersion := originator.Version
-	if eventVersion == "" {
+	if eventVersion == 0 {
 		return events, nil
-	}
-
-	eventVersionInt, err := strconv.ParseInt(eventVersion, 10, 64)
-	if err != nil {
-		return nil, err
 	}
 
 	var results []*types.Event
 	for _, e := range events {
-		currentOriginator := e.Originator
-		currentVersion := currentOriginator.Version
-		currentVersionInt, err := strconv.ParseInt(currentVersion, 10, 64)
-		if err != nil {
-			return nil, err
-		}
+		currentVersion := e.Originator.Version
 
 		if !fromVersion {
-			if currentVersionInt <= eventVersionInt {
+			if currentVersion <= eventVersion {
 				results = append(results, e)
 			}
 		} else {
-			if currentVersionInt >= eventVersionInt {
+			if currentVersion >= eventVersion {
 				results = append(results, e)
 			}
 		}

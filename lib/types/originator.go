@@ -7,12 +7,13 @@ type Originator struct {
 	ID string `json:"id" gorm:"column:id"`
 
 	// Version is the version number of the entity, used for optimistic locking
-	// and ensuring events are applied in the correct order
-	Version string `json:"version" gorm:"column:version"`
+	// and ensuring events are applied in the correct order.
+	// Version starts at 1 for newly created entities and increments with each update.
+	Version uint64 `json:"version" gorm:"column:version"`
 }
 
 // NewOriginator creates a new Originator with the given ID and version
-func NewOriginator(id, version string) *Originator {
+func NewOriginator(id string, version uint64) *Originator {
 	return &Originator{
 		ID:      id,
 		Version: version,
