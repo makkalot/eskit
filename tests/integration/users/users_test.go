@@ -59,7 +59,7 @@ var _ = Describe("Users", func() {
 			resp, err := httpClient.Post(baseURL, "application/json", bytes.NewBuffer(jsonData))
 			Expect(err).To(BeNil())
 			defer resp.Body.Close()
-			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+			Expect(resp.StatusCode).To(Equal(http.StatusCreated))
 
 			var createResp UserResponse
 			err = json.NewDecoder(resp.Body).Decode(&createResp)
@@ -95,7 +95,7 @@ var _ = Describe("Users", func() {
 			resp2, err := httpClient.Post(baseURL, "application/json", bytes.NewBuffer(jsonData2))
 			Expect(err).To(BeNil())
 			defer resp2.Body.Close()
-			Expect(resp2.StatusCode).To(Equal(http.StatusOK))
+			Expect(resp2.StatusCode).To(Equal(http.StatusCreated))
 
 			var createResp2 UserResponse
 			err = json.NewDecoder(resp2.Body).Decode(&createResp2)
@@ -141,7 +141,7 @@ var _ = Describe("Users", func() {
 			resp, err := httpClient.Post(baseURL, "application/json", bytes.NewBuffer(jsonData))
 			Expect(err).To(BeNil())
 			defer resp.Body.Close()
-			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+			Expect(resp.StatusCode).To(Equal(http.StatusCreated))
 
 			var createResp UserResponse
 			err = json.NewDecoder(resp.Body).Decode(&createResp)
