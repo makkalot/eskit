@@ -1,7 +1,5 @@
 SHELL := /bin/bash
 PROJECT_PATH=/go/src/github.com/makkalot/eskit
-GRPC_IMAGE_NAME = grpc-micro:latest
-SWAGGER_IMAGE_NAME=quay.io/goswagger/swagger:0.10.0
 REPOSITORY_NAME=makkalot
 NAMESPACE= default
 GCLOUD_CONTEXT=gke_verdant-tempest-186207_europe-west1-d_simple-micro-cluster
@@ -45,29 +43,11 @@ else
 	BASE64_DECODE=base64 -d
 endif
 
-GRPC_CONTRACTS =
-GRPC_CONTRACTS += common
-GRPC_CONTRACTS += eventstore
-GRPC_CONTRACTS += crudstore
-GRPC_CONTRACTS += consumerstore
-GRPC_CONTRACTS += users
-GRPC_TARGETS = $(addprefix generated/grpc/go/, $(GRPC_CONTRACTS))
-
-GRPC_PYTHON_CONTRACTS =
-GRPC_PYTHON_CONTRACTS += common
-GRPC_PYTHON_CONTRACTS += eventstore
-GRPC_PYTHON_CONTRACTS += crudstore
-GRPC_PYTHON_CONTRACTS += consumerstore
-GRPC_PYTHON_CONTRACTS += users
-GRPC_PYTHON_TARGETS = $(addprefix pyservices/generated/, $(GRPC_PYTHON_CONTRACTS))
-
 DEPLOY_TARGETS =
 K8S_SERVICES =
 
-
 GO_BUILD_SERVICES =
 GO_BUILD_SERVICES += users/cmd/users
-GO_BUILD_SERVICES += users/cmd/usersgw
 GO_BUILD_TARGETS = $(addprefix ./.bin/, $(GO_BUILD_SERVICES))
 
 
@@ -82,7 +62,7 @@ build: build-compose-go
 # And glean-generate-grpc cleans up all the generated grpc files
 
 .PHONY: clean
-clean: clean-generate clean-build
+clean: clean-build
 
 # Dependency targets
 
@@ -111,7 +91,7 @@ $(GO_BUILD_TARGETS): build-deps-go
 	env CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -buildvcs=false -o ./bin/$$SERVICE_NAME ./services/$$SERVICE_PATH
 
 .PHONY: build-deps-go
-build-deps-go: $(wildcard services/**/*.go) $(wildcard generated/grpc/go/**/*.go)
+build-deps-go: $(wildcard services/**/*.go)
 
 
 .PHONY: clean-build-go
@@ -160,95 +140,4 @@ test-go-unit:
 test-go-integration:
 	cd tests && ginkgo -r -v
 
-.PHONY: generate
-generate: generate-grpc generate-swagger
-
-.PHONY: generate-swagger
-generate-swagger: clean-generate-swagger
-	mkdir -p ./generated/swagger/go
-
-	docker pull $(SWAGGER_IMAGE_NAME)
-
-	for spec in `find ./generated/swagger/spec -iname *swagger.json`; do \
-		echo "Generating swagger spec for : $$spec" ; \
-		docker run --rm -v `pwd`:${PROJECT_PATH} -w ${PROJECT_PATH} $(SWAGGER_IMAGE_NAME) validate $${spec} ; \
-		export service_spec_dir=`dirname $${spec}`; \
-		export service_name=`basename $${service_spec_dir}`; \
-		docker run --rm -v `pwd`:${PROJECT_PATH} -w ${PROJECT_PATH} $(SWAGGER_IMAGE_NAME) generate client -f $${spec} -A service -t ./generated/swagger/go/$${service_name}; \
-	done
-
-.PHONY: clean-generate-swagger
-clean-generate-swagger:
-	rm -rf ./generated/swagger/go
-
-$(GRPC_TARGETS): generated/grpc/go/%: ./contracts/%
-	echo "Generating GRPC go packages $@ From $<"
-	mkdir -p $@
-	mkdir -p ./generated/swagger/spec
-
-	docker run -v `pwd`:${PROJECT_PATH} \
-		-w ${PROJECT_PATH} \
-		${GRPC_IMAGE_NAME} \
-		protoc \
-			--go_out=plugins=grpc:/go/src \
-			-I ./contracts -I. \
-			-I/go/src \
-			-I/go/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis \
-			--grpc-gateway_out=/go/src \
-			--swagger_out=logtostderr=true:${PROJECT_PATH}/generated/swagger/spec \
-			`find $< -iname *.proto`
-
-	find ./generated/swagger/spec -iname *swagger.json | grep -v service | xargs -I {} rm {}
-	find ./generated/swagger -type d -empty | xargs -I {} rm -r {}
-	find ./contracts -iname *service.proto | xargs -I {} grep -L "option (google.api.http)" {} | awk -F / '{print $$3 }' |  xargs -I {} rm -rf ./generated/swagger/spec/{}
-
-
-$(GRPC_PYTHON_TARGETS): pyservices/generated/%: ./contracts/%
-	echo "Generating GRPC Python packages $@ From $<"
-	mkdir -p $@
-
-	docker run -v `pwd`:${PROJECT_PATH} \
-		-w ${PROJECT_PATH} \
-		${GRPC_IMAGE_NAME} \
-		python3 -m grpc_tools.protoc \
-		-I/go/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis \
-		-I/go/src \
-		-I ./contracts \
-		--python_out=`dirname $@` \
-		--grpc_python_out=`dirname $@` \
-		`find $< -iname *.proto`
-
-	touch $@/__init__.py
-
-
-.PHONY: generate-grpc-docker
-generate-grpc-docker:
-	docker build -t ${GRPC_IMAGE_NAME} -f docker/Dockerfile.grpc .
-
-.PHONY: generate-grpc
-generate-grpc: generate-grpc-python generate-grpc-go
-
-
-.PHONY: generate-grpc-python
-generate-grpc-python: clean-generate-grpc-python generate-grpc-docker $(GRPC_PYTHON_TARGETS)
-	touch pyservices/generated/__init__.py
-
-
-.PHONY: generate-grpc-go
-generate-grpc-go: clean-generate-grpc-go generate-grpc-docker $(GRPC_TARGETS)
-
-
-.PHONY: clean-generate-grpc-python
-clean-generate-grpc-python:
-	rm -rf pyservices/generated
-
-.PHONY: clean-generate-grpc-go
-clean-generate-grpc-go:
-	rm -rf generated
-
-
-.PHONY: clean-generate-grpc
-clean-generate-grpc: clean-generate-grpc-python clean-generate-grpc-go
-
-.PHONY: clean-generate
-clean-generate: clean-generate-grpc clean-generate-swagger
+# Generate targets removed - no longer using gRPC/protobuf

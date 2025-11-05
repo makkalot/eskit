@@ -78,7 +78,7 @@ func (client *clientProvider) Create(msg interface{}) (*types.Originator, error)
 	if originator == nil {
 		originator = &types.Originator{
 			ID:      uuid.Must(uuid.NewV4()).String(),
-			Version: "1",
+			Version: 1,
 		}
 	}
 

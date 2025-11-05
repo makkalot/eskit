@@ -9,6 +9,6 @@ func NewOriginator() *types.Originator {
 	id := uuid.Must(uuid.NewV4()).String()
 	return &types.Originator{
 		ID:      id,
-		Version: "1",
+		Version: 1,
 	}
 }

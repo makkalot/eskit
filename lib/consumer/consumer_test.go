@@ -19,7 +19,7 @@ func TestNewAppLogConsumer(t *testing.T) {
 	e1 := &types.Event{
 		Originator: &types.Originator{
 			ID:      "originator1",
-			Version: "1",
+			Version: 1,
 		},
 		EventType:  "User.Created",
 		Payload:    "{}",
@@ -47,7 +47,7 @@ func TestNewAppLogConsumerStop(t *testing.T) {
 	e1 := &types.Event{
 		Originator: &types.Originator{
 			ID:      "originator1",
-			Version: "1",
+			Version: 1,
 		},
 		EventType:  "User.Created",
 		Payload:    "{}",
@@ -74,7 +74,7 @@ func TestNewAppLogConsumerProgress(t *testing.T) {
 	e1 := &types.Event{
 		Originator: &types.Originator{
 			ID:      "originator1",
-			Version: "1",
+			Version: 1,
 		},
 		EventType:  "User.Created",
 		Payload:    "{}",
@@ -98,7 +98,7 @@ func TestNewAppLogConsumerProgress(t *testing.T) {
 	e2 := &types.Event{
 		Originator: &types.Originator{
 			ID:      "originator1",
-			Version: "2",
+			Version: 2,
 		},
 		EventType:  "User.Updated",
 		Payload:    `{"name":"makkalot"}`,

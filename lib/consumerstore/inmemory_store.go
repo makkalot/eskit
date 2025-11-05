@@ -7,17 +7,17 @@ import (
 )
 
 type InMemoryConsumerApiProvider struct {
-	progress map[string]string
+	progress map[string]uint64
 }
 
 func NewInMemoryConsumerApiProvider() *InMemoryConsumerApiProvider {
 	return &InMemoryConsumerApiProvider{
-		progress: map[string]string{},
+		progress: map[string]uint64{},
 	}
 }
 
 func (consumer *InMemoryConsumerApiProvider) Cleanup() {
-	consumer.progress = map[string]string{}
+	consumer.progress = map[string]uint64{}
 }
 
 func (consumer *InMemoryConsumerApiProvider) LogConsume(ctx context.Context, request *AppLogConsumeProgress) error {
@@ -25,7 +25,7 @@ func (consumer *InMemoryConsumerApiProvider) LogConsume(ctx context.Context, req
 		return fmt.Errorf("missing consumer id")
 	}
 
-	if request.Offset == "" {
+	if request.Offset == 0 {
 		return fmt.Errorf("missing offset")
 	}
 
@@ -39,13 +39,14 @@ func (consumer *InMemoryConsumerApiProvider) GetLogConsume(ctx context.Context, 
 		return nil, fmt.Errorf("missing consumer id")
 	}
 
-	if consumer.progress[consumerID] == "" {
+	offset, exists := consumer.progress[consumerID]
+	if !exists || offset == 0 {
 		return nil, crudstore.RecordNotFound
 	}
 
 	return &AppLogConsumeProgress{
 		ConsumerId: consumerID,
-		Offset:     consumer.progress[consumerID],
+		Offset:     offset,
 	}, nil
 }
 

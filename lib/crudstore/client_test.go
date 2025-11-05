@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jinzhu/copier"
-	"github.com/makkalot/eskit/lib/common"
 	eventstore2 "github.com/makkalot/eskit/lib/eventstore"
 	"github.com/makkalot/eskit/lib/types"
 	uuid "github.com/satori/go.uuid"
@@ -57,7 +56,7 @@ func TestCrudAdd(t *testing.T) {
 			inputUser: User{
 				Originator: &types.Originator{
 					ID:      uuid.Must(uuid.NewV4()).String(),
-					Version: "1",
+					Version: 1,
 				},
 				Email: "makkalotsomething@gmail.com",
 			},
@@ -68,7 +67,7 @@ func TestCrudAdd(t *testing.T) {
 			inputUser: &User{
 				Originator: &types.Originator{
 					ID:      uuid.Must(uuid.NewV4()).String(),
-					Version: "1",
+					Version: 1,
 				},
 				Email:  "makkalotwork@gmail.com",
 				Active: true,
@@ -85,7 +84,7 @@ func TestCrudAdd(t *testing.T) {
 					return fmt.Errorf("equalcb : originator is empty")
 				}
 
-				if actualUser.Originator.ID == "" || actualUser.Originator.Version == "" {
+				if actualUser.Originator.ID == "" || actualUser.Originator.Version == 0 {
 					return fmt.Errorf("equalCB: empty fields in originator : %+v", actualUser.Originator)
 				}
 
@@ -163,8 +162,8 @@ func TestCrudUpdate(t *testing.T) {
 	assert.NoError(t, err, "first update failed")
 	assert.NotNil(t, updatedOriginator, "updated originator empty")
 	assert.Equal(t, updatedOriginator.ID, originator.ID)
-	assert.Equal(t, updatedOriginator.Version, common.MustIncrStringInt(originator.Version))
-	assert.Equal(t, user.Originator.Version, common.MustIncrStringInt(originator.Version))
+	assert.Equal(t, updatedOriginator.Version, originator.Version+1)
+	assert.Equal(t, user.Originator.Version, originator.Version+1)
 	assert.Equal(t, user.Originator.ID, originator.ID)
 
 	// get the latest version of
@@ -179,7 +178,7 @@ func TestCrudUpdate(t *testing.T) {
 	var oldCopyUser User
 	copyErr := copier.Copy(&oldCopyUser, &updatedUser)
 	assert.NoError(t, copyErr, "copy operation failed")
-	oldCopyUser.Originator.Version = "1"
+	oldCopyUser.Originator.Version = 1
 
 	user.LastName = "LastName"
 	lastUpdatedOriginator, err := client.Update(&oldCopyUser)

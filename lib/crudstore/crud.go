@@ -55,8 +55,8 @@ func (crud *CrudStoreProvider) Create(entityType string, originator *types.Origi
 		return fmt.Errorf("empty originator")
 	}
 
-	if originator.Version == "" {
-		originator.Version = "1"
+	if originator.Version == 0 {
+		originator.Version = 1
 	}
 
 	event := &types.Event{
@@ -71,8 +71,8 @@ func (crud *CrudStoreProvider) Create(entityType string, originator *types.Origi
 }
 
 func (crud *CrudStoreProvider) Update(entityType string, originator *types.Originator, payload string) (*types.Originator, error) {
-	if originator.Version == "" {
-		return nil, fmt.Errorf("misisng version")
+	if originator.Version == 0 {
+		return nil, fmt.Errorf("missing version")
 	}
 
 	newOriginator, err := common.IncrOriginator(originator)
@@ -127,14 +127,9 @@ func (crud *CrudStoreProvider) Get(originator *types.Originator, deleted bool) (
 	currentOriginator := events[0].Originator
 
 	originatorVersion := originator.Version
-	if originatorVersion != "" {
-		originatorVersionInt, err := strconv.ParseInt(originatorVersion, 10, 64)
-		if err != nil {
-			return "", nil, err
-		}
-
+	if originatorVersion != 0 {
 		// the version we're looking for is not created yet
-		if int(originatorVersionInt) > len(events) {
+		if int(originatorVersion) > len(events) {
 			return "", nil, fmt.Errorf("%w", RecordNotFound)
 		}
 	}
@@ -198,7 +193,7 @@ func (crud *CrudStoreProvider) List(entityType, fromID string, size int) ([]*typ
 	found := map[string]bool{}
 	var preResults []*types.Originator
 	var results []*types.Originator
-	var lastID string
+	var lastID uint64
 
 	for _, entry := range logs {
 		originatorID := entry.Event.Originator.ID
@@ -229,12 +224,10 @@ func (crud *CrudStoreProvider) List(entityType, fromID string, size int) ([]*typ
 		results = append(results, r)
 	}
 
-	lastID, err = common.IncrStringInt(lastID)
-	if err != nil {
-		return nil, "", err
-	}
+	// Increment for next query
+	lastID++
 
-	return results, lastID, nil
+	return results, strconv.FormatUint(lastID, 10), nil
 }
 
 func (crud *CrudStoreProvider) isEventDeleted(event *types.Event) bool {
