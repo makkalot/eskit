@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}} - CamConfig</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+        header {
+            background: #2c3e50;
+            color: white;
+            padding: 20px 0;
+            margin-bottom: 30px;
+        }
+        header h1 {
+            text-align: center;
+            font-size: 2em;
+        }
+        .form-container {
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h2 {
+            margin-bottom: 30px;
+            color: #2c3e50;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+        }
+        input[type="text"],
+        input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        input[type="text"]:focus,
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .hint {
+            font-size: 12px;
+            color: #7f8c8d;
+            margin-top: 3px;
+        }
+        .form-actions {
+            margin-top: 30px;
+            display: flex;
+            gap: 10px;
+        }
+        .btn {
+            padding: 12px 24px;
+            background: #3498db;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+        .btn:hover {
+            background: #2980b9;
+        }
+        .btn-secondary {
+            background: #95a5a6;
+        }
+        .btn-secondary:hover {
+            background: #7f8c8d;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>Camera Configuration Manager</h1>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="form-container">
+            <h2>{{.Title}}</h2>
+            <form method="POST" action="{{.Action}}">
+                <div class="form-group">
+                    <label for="cameraId">Camera ID *</label>
+                    <input type="text" id="cameraId" name="cameraId"
+                           value="{{if .Config}}{{.Config.CameraID}}{{end}}" required>
+                    <div class="hint">Unique identifier for the camera (e.g., CAM-001)</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="name">Camera Name *</label>
+                    <input type="text" id="name" name="name"
+                           value="{{if .Config}}{{.Config.Name}}{{end}}" required>
+                    <div class="hint">Friendly name for the camera (e.g., Front Door Camera)</div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="gamma">Gamma</label>
+                        <input type="number" id="gamma" name="gamma" step="0.01" min="0" max="5"
+                               value="{{if .Config}}{{.Config.Gamma}}{{else}}1.0{{end}}">
+                        <div class="hint">Gamma correction (0-5, default: 1.0)</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="exposure">Exposure</label>
+                        <input type="number" id="exposure" name="exposure" min="0"
+                               value="{{if .Config}}{{.Config.Exposure}}{{else}}1000{{end}}">
+                        <div class="hint">Exposure time in microseconds</div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="saturation">Saturation</label>
+                        <input type="number" id="saturation" name="saturation" min="0" max="100"
+                               value="{{if .Config}}{{.Config.Saturation}}{{else}}50{{end}}">
+                        <div class="hint">Saturation level (0-100)</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="sharpness">Sharpness</label>
+                        <input type="number" id="sharpness" name="sharpness" min="0" max="100"
+                               value="{{if .Config}}{{.Config.Sharpness}}{{else}}50{{end}}">
+                        <div class="hint">Sharpness level (0-100)</div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="gain">Gain</label>
+                    <input type="number" id="gain" name="gain" min="0" max="100"
+                           value="{{if .Config}}{{.Config.Gain}}{{else}}25{{end}}">
+                    <div class="hint">Gain value (0-100)</div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn">Save Configuration</button>
+                    <a href="/web/" class="btn btn-secondary">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
