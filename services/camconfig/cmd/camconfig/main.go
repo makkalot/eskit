@@ -69,13 +69,16 @@ func main() {
 		log.Println("Using PostgreSQL event store")
 	}
 
-	// Create CRUD store client
-	crudStoreClient, err := crudstore.NewClient(context.Background(), config.DbUri)
+	// Create CRUD store from the same event store instance
+	crudStore, err := crudstore.NewCrudStoreProvider(context.Background(), estore)
 	if err != nil {
-		log.Fatalf("creating crudstore client failed : %v", err)
+		log.Fatalf("creating crud store provider failed : %v", err)
 	}
 
-	// Create service provider
+	// Create CRUD store client with the same event store
+	crudStoreClient := crudstore.NewClientWithStore(crudStore)
+
+	// Create service provider with the same event store
 	camConfigProvider, err := provider.NewCamConfigServiceProvider(crudStoreClient, estore)
 	if err != nil {
 		log.Fatalf("camconfig provider failed initializing : %v", err)

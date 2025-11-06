@@ -183,7 +183,11 @@ func (s *CamConfigServiceProvider) WebAuditLogHandler(w http.ResponseWriter, r *
 		return
 	}
 
-	// Parse logs and filter for CamConfig events
+	// Get all configs for dropdown
+	var allConfigs []*CamConfig
+	s.crudStore.ListWithPagination(&allConfigs, "", 100)
+
+	// Parse logs and filter
 	var auditEntries []AuditLogEntry
 	previousStates := make(map[string]*CamConfig) // Store previous states by ID
 
@@ -228,8 +232,10 @@ func (s *CamConfigServiceProvider) WebAuditLogHandler(w http.ResponseWriter, r *
 	}
 
 	data := map[string]interface{}{
-		"Entries":  auditEntries,
-		"FilterID": filterID,
+		"Entries":     auditEntries,
+		"FilterID":    filterID,
+		"AllConfigs":  allConfigs,
+		"TotalEvents": len(logs),
 	}
 
 	if err := templates.ExecuteTemplate(w, "audit.html", data); err != nil {

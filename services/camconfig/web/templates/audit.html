@@ -69,11 +69,13 @@
             font-weight: 600;
             color: #555;
         }
-        .filter-group input {
+        .filter-group input,
+        .filter-group select {
             width: 100%;
             padding: 10px;
             border: 1px solid #ddd;
             border-radius: 4px;
+            font-size: 14px;
         }
         .btn {
             padding: 10px 20px;
@@ -234,13 +236,18 @@
         <div class="filter-bar">
             <form method="GET" action="/web/audit">
                 <div class="filter-group">
-                    <label for="id">Filter by Config ID</label>
-                    <input type="text" id="id" name="id" value="{{.FilterID}}"
-                           placeholder="Enter config ID to filter...">
+                    <label for="id">Filter by Camera Configuration</label>
+                    <select id="id" name="id" onchange="this.form.submit()">
+                        <option value="">-- All Events ({{.TotalEvents}} total) --</option>
+                        {{range .AllConfigs}}
+                        <option value="{{.Originator.ID}}" {{if eq $.FilterID .Originator.ID}}selected{{end}}>
+                            {{.CameraID}} - {{.Name}}
+                        </option>
+                        {{end}}
+                    </select>
                 </div>
-                <button type="submit" class="btn">Apply Filter</button>
                 {{if .FilterID}}
-                <a href="/web/audit" class="btn btn-secondary">Clear Filter</a>
+                <a href="/web/audit" class="btn btn-secondary">Show All Events</a>
                 {{end}}
             </form>
         </div>
