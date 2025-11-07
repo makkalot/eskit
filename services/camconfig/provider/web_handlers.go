@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"gopkg.in/evanphx/json-patch.v3"
 )
 
 var templates *template.Template
@@ -20,8 +21,21 @@ func InitTemplates(templateDir string) error {
 	return err
 }
 
+// checkTemplates ensures templates are initialized before use
+func checkTemplates() error {
+	if templates == nil {
+		return fmt.Errorf("templates not initialized")
+	}
+	return nil
+}
+
 // WebIndexHandler displays the list of camera configurations
 func (s *CamConfigServiceProvider) WebIndexHandler(w http.ResponseWriter, r *http.Request) {
+	if err := checkTemplates(); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	// List all configs
 	var configs []*CamConfig
 	_, err := s.crudStore.ListWithPagination(&configs, "", 100)
@@ -42,6 +56,10 @@ func (s *CamConfigServiceProvider) WebIndexHandler(w http.ResponseWriter, r *htt
 // WebCreateHandler displays the create form or handles form submission
 func (s *CamConfigServiceProvider) WebCreateHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
+		if err := checkTemplates(); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		// Show create form
 		if err := templates.ExecuteTemplate(w, "form.html", map[string]interface{}{
 			"Title":  "Create Camera Configuration",
@@ -100,6 +118,10 @@ func (s *CamConfigServiceProvider) WebEditHandler(w http.ResponseWriter, r *http
 	}
 
 	if r.Method == http.MethodGet {
+		if err := checkTemplates(); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		// Show edit form
 		data := map[string]interface{}{
 			"Title":  "Edit Camera Configuration",
@@ -177,7 +199,7 @@ func (s *CamConfigServiceProvider) WebAuditLogHandler(w http.ResponseWriter, r *
 	filterID := r.URL.Query().Get("id")
 
 	// Get application logs
-	logs, err := s.eventStore.Logs(0, 1000, "")
+	logs, err := s.eventStore.Logs(0, 1000, "CamConfig")
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to get logs: %v", err), http.StatusInternalServerError)
 		return
@@ -193,11 +215,6 @@ func (s *CamConfigServiceProvider) WebAuditLogHandler(w http.ResponseWriter, r *
 
 	for _, log := range logs {
 		event := log.Event
-
-		// Only show CamConfig events
-		if !strings.HasPrefix(event.EventType, "CamConfig.") {
-			continue
-		}
 
 		// Apply filter if specified
 		if filterID != "" && event.Originator.ID != filterID {
@@ -215,17 +232,37 @@ func (s *CamConfigServiceProvider) WebAuditLogHandler(w http.ResponseWriter, r *
 		// Parse the payload to get the config state
 		var currentConfig CamConfig
 		if err := json.Unmarshal([]byte(event.Payload), &currentConfig); err == nil {
-			entry.CameraID = currentConfig.CameraID
-
-			// Calculate changes if this is an update
+			// For Updated events, the payload is a JSON Merge Patch
+			// We need to apply this patch to the previous state to get the complete current state
 			if strings.HasSuffix(event.EventType, ".Updated") {
 				if prevConfig, exists := previousStates[event.Originator.ID]; exists {
-					entry.Changes = calculateChanges(prevConfig, &currentConfig)
+					// Convert previous state to JSON
+					prevJSON, err := json.Marshal(prevConfig)
+					if err == nil {
+						// Apply the merge patch to get the new complete state
+						newJSON, err := jsonpatch.MergePatch(prevJSON, []byte(event.Payload))
+						if err == nil {
+							// Unmarshal the complete new state
+							if err := json.Unmarshal(newJSON, &currentConfig); err == nil {
+								entry.CameraID = currentConfig.CameraID
+								entry.Changes = calculateChanges(prevConfig, &currentConfig)
+							}
+						}
+					}
+				} else {
+					// No previous state found, treat patch as complete state
+					entry.CameraID = currentConfig.CameraID
+					entry.Changes = calculateChanges(&CamConfig{}, &currentConfig)
 				}
+			} else {
+				// For Created events, the payload contains the complete state
+				entry.CameraID = currentConfig.CameraID
 			}
 
-			// Store current state for next iteration
-			previousStates[event.Originator.ID] = &currentConfig
+			// Store current state for next iteration (but only if this is not a Delete event)
+			if !strings.HasSuffix(event.EventType, ".Deleted") {
+				previousStates[event.Originator.ID] = &currentConfig
+			}
 		}
 
 		auditEntries = append(auditEntries, entry)
@@ -236,6 +273,11 @@ func (s *CamConfigServiceProvider) WebAuditLogHandler(w http.ResponseWriter, r *
 		"FilterID":    filterID,
 		"AllConfigs":  allConfigs,
 		"TotalEvents": len(logs),
+	}
+
+	if err := checkTemplates(); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	if err := templates.ExecuteTemplate(w, "audit.html", data); err != nil {

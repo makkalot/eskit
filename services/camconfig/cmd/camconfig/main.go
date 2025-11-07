@@ -87,11 +87,9 @@ func main() {
 	// Initialize HTML templates
 	templatePath := filepath.Join(config.TemplateDir)
 	if err := provider.InitTemplates(templatePath); err != nil {
-		log.Printf("Warning: Failed to load templates from %s: %v", templatePath, err)
-		log.Println("Web interface may not work correctly")
-	} else {
-		log.Println("Templates loaded from:", templatePath)
+		log.Fatalf("Failed to load templates from %s: %v", templatePath, err)
 	}
+	log.Println("Templates loaded from:", templatePath)
 
 	// Setup REST API routes
 	mux := http.NewServeMux()
