@@ -31,6 +31,15 @@ services:
     links:
       - db
 
+  camconfig:
+    build:
+      dockerfile: "./services/camconfig/Dockerfile"
+      context: "."
+    ports:
+      - "8081:8081"
+    environment:
+      - DB_URI=inmemory://
+
   gotest:
     build:
       context: .
@@ -41,6 +50,8 @@ services:
     command: "make test-go-integration"
     environment:
       - USERS_ENDPOINT=users:8080
+      - CAMCONFIG_ENDPOINT=camconfig:8081
     links:
       - db
       - users
+      - camconfig

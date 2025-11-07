@@ -1,0 +1,3 @@
+listenAddr: ":8081"
+dbUri: "inmemory://"
+templateDir: "./web/templates"
