@@ -1,0 +1,94 @@
+{{define "content"}}
+<div class="page-header">
+    <h1>Application Log Query</h1>
+    <p class="subtitle">Sequential log of all events with partition filtering</p>
+</div>
+
+<div class="filters-card" x-data="{ showFilters: true }">
+    <div class="filters-header" @click="showFilters = !showFilters">
+        <h3>Filters</h3>
+        <span x-text="showFilters ? '▼' : '▶'"></span>
+    </div>
+    <form class="filters-form" hx-get="/applog" hx-target="#applog-table" hx-swap="outerHTML" x-show="showFilters">
+        <div class="filter-group">
+            <label for="partition_id">Partition ID (Entity Type)</label>
+            <input type="text" id="partition_id" name="partition_id" value="{{.PartitionID}}" placeholder="e.g., User, CamConfig">
+        </div>
+        <div class="filter-group">
+            <label for="event_type">Event Type</label>
+            <input type="text" id="event_type" name="event_type" value="{{.EventType}}" placeholder="e.g., User.Created">
+        </div>
+        <div class="filter-group">
+            <label for="date_from">Date From</label>
+            <input type="datetime-local" id="date_from" name="date_from" value="{{.DateFrom}}">
+        </div>
+        <div class="filter-group">
+            <label for="date_to">Date To</label>
+            <input type="datetime-local" id="date_to" name="date_to" value="{{.DateTo}}">
+        </div>
+        <div class="filter-group">
+            <label for="from_id">Start from Log ID</label>
+            <input type="number" id="from_id" name="from_id" value="{{.FromID}}" placeholder="0" min="0">
+        </div>
+        <div class="filter-actions">
+            <button type="submit" class="btn btn-primary">Apply Filters</button>
+            <button type="button" class="btn btn-secondary" onclick="window.location.href='/applog'">Clear</button>
+        </div>
+    </form>
+</div>
+
+{{template "applog-table" .}}
+{{end}}
+
+{{define "applog-table"}}
+<div id="applog-table">
+    {{if .Entries}}
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Log ID</th>
+                    <th>Partition</th>
+                    <th>Event Type</th>
+                    <th>Originator ID</th>
+                    <th>Version</th>
+                    <th>Payload</th>
+                    <th>Occurred On</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .Entries}}
+                <tr x-data="{ expanded: false }">
+                    <td class="font-mono">{{.ID}}</td>
+                    <td><span class="badge badge-partition">{{.PartitionID}}</span></td>
+                    <td><span class="badge">{{.EventType}}</span></td>
+                    <td class="font-mono small">{{.OriginatorID}}</td>
+                    <td>{{.OriginatorVersion}}</td>
+                    <td>
+                        <div class="payload-cell">
+                            <code class="payload-preview" :class="{ 'expanded': expanded }" @click="expanded = !expanded">{{.Payload}}</code>
+                        </div>
+                    </td>
+                    <td class="nowrap">{{.OccurredOn.Format "2006-01-02 15:04:05"}}</td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+    {{if .HasMore}}
+    <div class="pagination">
+        <button class="btn btn-secondary"
+                hx-get="/applog?from_id={{.NextID}}&partition_id={{.PartitionID}}&event_type={{.EventType}}&date_from={{.DateFrom}}&date_to={{.DateTo}}"
+                hx-target="#applog-table"
+                hx-swap="outerHTML">
+            Load More
+        </button>
+    </div>
+    {{end}}
+    {{else}}
+    <div class="empty-state">
+        <p>No log entries found. Try adjusting your filters.</p>
+    </div>
+    {{end}}
+</div>
+{{end}}

@@ -1,0 +1,30 @@
+{{define "layout"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}} - ESKit Admin</title>
+    <script src="https://unpkg.com/htmx.org@2.0.0"></script>
+    <script src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js" defer></script>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="navbar-brand">
+                <a href="/">ESKit Admin</a>
+            </div>
+            <div class="navbar-menu">
+                <a href="/events" class="nav-link">Raw Events</a>
+                <a href="/applog" class="nav-link">Application Log</a>
+                <a href="/crud" class="nav-link">CRUD Entities</a>
+            </div>
+        </div>
+    </nav>
+    <main class="container">
+        {{template "content" .}}
+    </main>
+</body>
+</html>
+{{end}}
