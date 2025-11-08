@@ -32,11 +32,10 @@ func InitTemplates(templatePath string) error {
 
 // StoredEvent represents a row in the stored_events table
 type StoredEvent struct {
-	OriginatorID      string    `gorm:"column:originator_id"`
-	OriginatorVersion uint64    `gorm:"column:originator_version"`
-	EventType         string    `gorm:"column:event_type"`
-	Payload           string    `gorm:"column:payload"`
-	CreatedAt         time.Time `gorm:"column:created_at"`
+	OriginatorID      string `gorm:"column:originator_id"`
+	OriginatorVersion uint64 `gorm:"column:originator_version"`
+	EventType         string `gorm:"column:event_type"`
+	Payload           string `gorm:"column:payload"`
 }
 
 func (StoredEvent) TableName() string {
@@ -45,10 +44,9 @@ func (StoredEvent) TableName() string {
 
 // StoredLogEntry represents a row in the stored_log_entries table
 type StoredLogEntry struct {
-	ID           uint64    `gorm:"column:id;primaryKey"`
-	PartitionID  string    `gorm:"column:partition_id"`
-	EventPayload string    `gorm:"column:event_payload"`
-	CreatedAt    time.Time `gorm:"column:created_at"`
+	ID           uint64 `gorm:"column:id;primaryKey"`
+	PartitionID  string `gorm:"column:partition_id"`
+	EventPayload string `gorm:"column:event_payload"`
 }
 
 func (StoredLogEntry) TableName() string {
@@ -162,7 +160,7 @@ func (p *AdminProvider) EventsHandler(db *gorm.DB) http.HandlerFunc {
 			page = 0
 		}
 
-		// Build query
+		// Build query (no date filtering in SQL since created_at doesn't exist)
 		query := db.Model(&StoredEvent{})
 
 		if originatorID != "" {
@@ -171,52 +169,70 @@ func (p *AdminProvider) EventsHandler(db *gorm.DB) http.HandlerFunc {
 		if eventType != "" {
 			query = query.Where("event_type LIKE ?", "%"+eventType+"%")
 		}
-		if dateFrom != "" {
-			if t, err := time.Parse("2006-01-02T15:04", dateFrom); err == nil {
-				query = query.Where("created_at >= ?", t)
-			}
-		}
-		if dateTo != "" {
-			if t, err := time.Parse("2006-01-02T15:04", dateTo); err == nil {
-				query = query.Where("created_at <= ?", t)
-			}
-		}
 
-		// Pagination
-		pageSize := 50
-		offset := page * pageSize
-
+		// Get all matching events (we'll filter by date in memory)
 		var events []StoredEvent
-		if err := query.Order("created_at DESC").
-			Limit(pageSize + 1).
-			Offset(offset).
+		if err := query.Order("originator_version DESC").
 			Find(&events).Error; err != nil {
 			log.Printf("Error querying events: %v", err)
 			http.Error(w, "Error querying events", http.StatusInternalServerError)
 			return
 		}
 
-		// Check if there are more results
-		hasMore := len(events) > pageSize
-		if hasMore {
-			events = events[:pageSize]
+		// Parse timestamps and apply date filters
+		var eventRows []EventRow
+		var dateFromTime, dateToTime time.Time
+		if dateFrom != "" {
+			dateFromTime, _ = time.Parse("2006-01-02T15:04", dateFrom)
+		}
+		if dateTo != "" {
+			dateToTime, _ = time.Parse("2006-01-02T15:04", dateTo)
 		}
 
-		// Convert to template data
-		eventRows := make([]EventRow, len(events))
-		for i, e := range events {
-			eventRows[i] = EventRow{
+		for _, e := range events {
+			// Parse timestamp from event payload
+			var payloadData map[string]interface{}
+			timestamp := time.Time{}
+			if err := json.Unmarshal([]byte(e.Payload), &payloadData); err == nil {
+				if occurredOnStr, ok := payloadData["occurredOn"].(string); ok {
+					timestamp, _ = time.Parse(time.RFC3339, occurredOnStr)
+				}
+			}
+
+			// Apply date filters
+			if !dateFromTime.IsZero() && timestamp.Before(dateFromTime) {
+				continue
+			}
+			if !dateToTime.IsZero() && timestamp.After(dateToTime) {
+				continue
+			}
+
+			eventRows = append(eventRows, EventRow{
 				OriginatorID:      e.OriginatorID,
 				OriginatorVersion: e.OriginatorVersion,
 				EventType:         e.EventType,
 				Payload:           e.Payload,
-				OccurredOn:        e.CreatedAt,
-			}
+				OccurredOn:        timestamp,
+			})
 		}
+
+		// Apply pagination
+		pageSize := 50
+		offset := page * pageSize
+		hasMore := len(eventRows) > offset+pageSize
+
+		endIdx := offset + pageSize
+		if endIdx > len(eventRows) {
+			endIdx = len(eventRows)
+		}
+		if offset > len(eventRows) {
+			offset = len(eventRows)
+		}
+		paginatedEvents := eventRows[offset:endIdx]
 
 		data := EventsPageData{
 			Title:        "Raw Events",
-			Events:       eventRows,
+			Events:       paginatedEvents,
 			OriginatorID: originatorID,
 			EventType:    eventType,
 			DateFrom:     dateFrom,
@@ -430,19 +446,28 @@ func (p *AdminProvider) CrudEntityDetailHandler(db *gorm.DB) http.HandlerFunc {
 		currentState := make(map[string]interface{})
 		isDeleted := false
 		var lastEvent StoredEvent
+		var lastTimestamp time.Time
 
 		for _, event := range storedEvents {
 			lastEvent = event
 
+			// Parse timestamp from payload
+			var payloadData map[string]interface{}
+			if err := json.Unmarshal([]byte(event.Payload), &payloadData); err == nil {
+				if occurredOnStr, ok := payloadData["occurredOn"].(string); ok {
+					lastTimestamp, _ = time.Parse(time.RFC3339, occurredOnStr)
+				}
+			}
+
 			if strings.HasSuffix(event.EventType, ".Created") {
 				// Full object
-				json.Unmarshal([]byte(event.Payload), &currentState)
+				currentState = payloadData
 			} else if strings.HasSuffix(event.EventType, ".Updated") {
 				// Merge patch
-				var patch map[string]interface{}
-				json.Unmarshal([]byte(event.Payload), &patch)
-				for k, v := range patch {
-					currentState[k] = v
+				for k, v := range payloadData {
+					if k != "occurredOn" {
+						currentState[k] = v
+					}
 				}
 			} else if strings.HasSuffix(event.EventType, ".Deleted") {
 				isDeleted = true
@@ -455,11 +480,20 @@ func (p *AdminProvider) CrudEntityDetailHandler(db *gorm.DB) http.HandlerFunc {
 		// Convert events to template data
 		eventHistory := make([]EntityEvent, len(storedEvents))
 		for i, e := range storedEvents {
+			// Parse timestamp for this event
+			var payloadData map[string]interface{}
+			eventTimestamp := time.Time{}
+			if err := json.Unmarshal([]byte(e.Payload), &payloadData); err == nil {
+				if occurredOnStr, ok := payloadData["occurredOn"].(string); ok {
+					eventTimestamp, _ = time.Parse(time.RFC3339, occurredOnStr)
+				}
+			}
+
 			eventHistory[i] = EntityEvent{
 				Version:    e.OriginatorVersion,
 				EventType:  e.EventType,
 				Payload:    e.Payload,
-				OccurredOn: e.CreatedAt,
+				OccurredOn: eventTimestamp,
 			}
 		}
 
@@ -471,7 +505,7 @@ func (p *AdminProvider) CrudEntityDetailHandler(db *gorm.DB) http.HandlerFunc {
 				OriginatorID: originatorID,
 				Version:      lastEvent.OriginatorVersion,
 				Data:         string(stateJSON),
-				UpdatedAt:    lastEvent.CreatedAt,
+				UpdatedAt:    lastTimestamp,
 				IsDeleted:    isDeleted,
 			},
 			Events: eventHistory,
@@ -550,17 +584,26 @@ func (p *AdminProvider) getEntitiesOfType(db *gorm.DB, entityType string) ([]Cru
 		currentState := make(map[string]interface{})
 		isDeleted := false
 		var lastEvent StoredEvent
+		var lastTimestamp time.Time
 
 		for _, event := range storedEvents {
 			lastEvent = event
 
+			// Parse timestamp from payload
+			var payloadData map[string]interface{}
+			if err := json.Unmarshal([]byte(event.Payload), &payloadData); err == nil {
+				if occurredOnStr, ok := payloadData["occurredOn"].(string); ok {
+					lastTimestamp, _ = time.Parse(time.RFC3339, occurredOnStr)
+				}
+			}
+
 			if strings.HasSuffix(event.EventType, ".Created") {
-				json.Unmarshal([]byte(event.Payload), &currentState)
+				currentState = payloadData
 			} else if strings.HasSuffix(event.EventType, ".Updated") {
-				var patch map[string]interface{}
-				json.Unmarshal([]byte(event.Payload), &patch)
-				for k, v := range patch {
-					currentState[k] = v
+				for k, v := range payloadData {
+					if k != "occurredOn" {
+						currentState[k] = v
+					}
 				}
 			} else if strings.HasSuffix(event.EventType, ".Deleted") {
 				isDeleted = true
@@ -573,7 +616,7 @@ func (p *AdminProvider) getEntitiesOfType(db *gorm.DB, entityType string) ([]Cru
 			OriginatorID: id,
 			Version:      lastEvent.OriginatorVersion,
 			Data:         string(stateJSON),
-			UpdatedAt:    lastEvent.CreatedAt,
+			UpdatedAt:    lastTimestamp,
 			IsDeleted:    isDeleted,
 		})
 	}
