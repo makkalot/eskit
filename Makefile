@@ -84,23 +84,18 @@ build-compose-go:
 	$(COMMON_SH) source ./scripts/compose.sh && compose_build $(CI_JOB_ID)
 
 .PHONY: build-go
-build-go: clean-build-go $(GO_BUILD_TARGETS)
-
-$(GO_BUILD_TARGETS): build-deps-go
-	mkdir -p ./bin
-	SERVICE_NAME=$(shell basename $@) && \
-	SERVICE_PATH=$(shell echo $@ | cut -c6-) && \
-	env CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -buildvcs=false -o ./bin/$$SERVICE_NAME ./services/$$SERVICE_PATH
-
-.PHONY: build-deps-go
-build-deps-go: $(wildcard services/**/*.go)
-
+build-go: clean-build-go
+	@for service in $(GO_BUILD_SERVICES); do \
+		SERVICE_NAME=$$(basename $$service) && \
+		SERVICE_PATH=$$service && \
+		echo "Building $$SERVICE_NAME..." && \
+		mkdir -p ./bin && \
+		env CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -buildvcs=false -o ./bin/$$SERVICE_NAME ./services/$$SERVICE_PATH || exit 1; \
+	done
 
 .PHONY: clean-build-go
 clean-build-go:
-	for build_target in $(GO_BUILD_SERVICES); do \
-		rm -rf ./bin ; \
-	done
+	rm -rf ./bin
 
 .PHONY: clean-build
 clean-build: clean-build-go
