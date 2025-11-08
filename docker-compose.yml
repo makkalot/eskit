@@ -38,7 +38,9 @@ services:
     ports:
       - "8081:8081"
     environment:
-      - DB_URI=inmemory://
+      - DB_URI=host=db port=5432 user=postgres dbname=eventsourcing password=t00r sslmode=disable
+    links:
+      - db
 
   admin:
     build:
