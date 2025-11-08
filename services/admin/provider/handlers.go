@@ -249,8 +249,8 @@ func (p *AdminProvider) EventsHandler(db *gorm.DB) http.HandlerFunc {
 				http.Error(w, "Error rendering template", http.StatusInternalServerError)
 			}
 		} else {
-			if err := templates.ExecuteTemplate(w, "layout", data); err != nil {
-				log.Printf("Error executing layout template: %v", err)
+			if err := templates.ExecuteTemplate(w, "events.html", data); err != nil {
+				log.Printf("Error executing events template: %v", err)
 				http.Error(w, "Error rendering template", http.StatusInternalServerError)
 			}
 		}
@@ -362,8 +362,8 @@ func (p *AdminProvider) AppLogHandler(db *gorm.DB) http.HandlerFunc {
 				http.Error(w, "Error rendering template", http.StatusInternalServerError)
 			}
 		} else {
-			if err := templates.ExecuteTemplate(w, "layout", data); err != nil {
-				log.Printf("Error executing layout template: %v", err)
+			if err := templates.ExecuteTemplate(w, "applog.html", data); err != nil {
+				log.Printf("Error executing applog template: %v", err)
 				http.Error(w, "Error rendering template", http.StatusInternalServerError)
 			}
 		}
@@ -390,8 +390,8 @@ func (p *AdminProvider) CrudHandler(db *gorm.DB) http.HandlerFunc {
 				ShowingEntities: false,
 			}
 
-			if err := templates.ExecuteTemplate(w, "layout", data); err != nil {
-				log.Printf("Error executing template: %v", err)
+			if err := templates.ExecuteTemplate(w, "crud.html", data); err != nil {
+				log.Printf("Error executing crud template: %v", err)
 				http.Error(w, "Error rendering template", http.StatusInternalServerError)
 			}
 		} else {
@@ -410,8 +410,8 @@ func (p *AdminProvider) CrudHandler(db *gorm.DB) http.HandlerFunc {
 				ShowingEntities: true,
 			}
 
-			if err := templates.ExecuteTemplate(w, "layout", data); err != nil {
-				log.Printf("Error executing template: %v", err)
+			if err := templates.ExecuteTemplate(w, "crud.html", data); err != nil {
+				log.Printf("Error executing crud template: %v", err)
 				http.Error(w, "Error rendering template", http.StatusInternalServerError)
 			}
 		}
@@ -513,8 +513,8 @@ func (p *AdminProvider) CrudEntityDetailHandler(db *gorm.DB) http.HandlerFunc {
 			Events: eventHistory,
 		}
 
-		if err := templates.ExecuteTemplate(w, "layout", data); err != nil {
-			log.Printf("Error executing template: %v", err)
+		if err := templates.ExecuteTemplate(w, "crud_entity.html", data); err != nil {
+			log.Printf("Error executing crud_entity template: %v", err)
 			http.Error(w, "Error rendering template", http.StatusInternalServerError)
 		}
 	}
