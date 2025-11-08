@@ -1,0 +1,3 @@
+listenAddr: ":8082"
+dbUri: "host=db port=5432 user=postgres dbname=eventsourcing password=t00r sslmode=disable"
+dbDialect: "postgres"

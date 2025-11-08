@@ -96,6 +96,24 @@ export LISTEN_ADDR=":8082"
 
 ## Running the Service
 
+### Using Docker Compose (Recommended)
+
+The easiest way to run the admin service is with Docker Compose, which will also start the database and other services:
+
+```bash
+# From the repository root
+# Build all services
+make build
+
+# Start all services (including admin on port 8082)
+docker compose up admin
+
+# Or start everything
+docker compose up
+```
+
+The admin interface will be available at `http://localhost:8082/`
+
 ### From Source
 ```bash
 cd services/admin
@@ -104,6 +122,10 @@ go run ./cmd/admin
 
 ### From Binary
 ```bash
+# First build from repository root
+make build-go
+
+# Then run
 ./bin/admin
 ```
 
@@ -114,6 +136,22 @@ go run ./cmd/admin
 
 # Or use environment variables
 DB_URI="..." DB_DIALECT="postgres" ./bin/admin
+```
+
+### Docker Only
+
+To build and run just the admin service with Docker:
+
+```bash
+# From repository root
+# Build the Docker image
+docker build -f services/admin/Dockerfile -t eskit-admin .
+
+# Run with PostgreSQL connection
+docker run -p 8082:8082 \
+  -e DB_URI="host=your-db port=5432 user=postgres dbname=eventsourcing password=yourpass sslmode=disable" \
+  -e DB_DIALECT="postgres" \
+  eskit-admin
 ```
 
 ## Usage

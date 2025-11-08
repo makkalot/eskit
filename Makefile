@@ -49,6 +49,7 @@ K8S_SERVICES =
 GO_BUILD_SERVICES =
 GO_BUILD_SERVICES += users/cmd/users
 GO_BUILD_SERVICES += camconfig/cmd/camconfig
+GO_BUILD_SERVICES += admin/cmd/admin
 GO_BUILD_TARGETS = $(addprefix ./.bin/, $(GO_BUILD_SERVICES))
 
 
