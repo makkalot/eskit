@@ -289,6 +289,8 @@ func (p *AdminProvider) AppLogHandler(db *gorm.DB) http.HandlerFunc {
 			return
 		}
 
+		log.Printf("AppLog query returned %d entries (partition_id=%s, fromID=%d)", len(entries), partitionID, fromID)
+
 		// Check if there are more results
 		hasMore := len(entries) > pageSize
 		if hasMore {
@@ -528,9 +530,15 @@ func (p *AdminProvider) discoverEntityTypes(db *gorm.DB) ([]EntityType, error) {
 		return nil, err
 	}
 
+	log.Printf("Found %d distinct partitions: %v", len(partitions), partitions)
+
 	// Count entities for each partition
 	var entityTypes []EntityType
 	for _, partition := range partitions {
+		// Skip empty partition IDs
+		if partition == "" {
+			continue
+		}
 		// Count unique originator IDs for this partition
 		type CountResult struct {
 			Count int
