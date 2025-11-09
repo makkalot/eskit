@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jinzhu/gorm"
+	"github.com/makkalot/eskit/lib/common"
 	"github.com/makkalot/eskit/lib/types"
 )
 
@@ -28,29 +28,6 @@ func InitTemplates(templatePath string) error {
 		return fmt.Errorf("parsing templates: %w", err)
 	}
 	return nil
-}
-
-// StoredEvent represents a row in the stored_events table
-type StoredEvent struct {
-	OriginatorID      string `gorm:"column:originator_id"`
-	OriginatorVersion uint64 `gorm:"column:originator_version"`
-	EventType         string `gorm:"column:event_type"`
-	Payload           string `gorm:"column:payload"`
-}
-
-func (StoredEvent) TableName() string {
-	return "stored_events"
-}
-
-// StoredLogEntry represents a row in the stored_log_entries table
-type StoredLogEntry struct {
-	ID           uint64 `gorm:"column:id;primaryKey"`
-	PartitionID  string `gorm:"column:partition_id"`
-	EventPayload string `gorm:"column:event_payload"`
-}
-
-func (StoredLogEntry) TableName() string {
-	return "stored_log_entries"
 }
 
 // EventRow represents an event for display
@@ -141,46 +118,23 @@ type CrudEntityDetailData struct {
 }
 
 // HomeHandler redirects to the events page
-func (p *AdminProvider) HomeHandler(db *gorm.DB) http.HandlerFunc {
+func (p *AdminProvider) HomeHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/events", http.StatusFound)
 	}
 }
 
-// EventsHandler handles the raw events query page
-func (p *AdminProvider) EventsHandler(db *gorm.DB) http.HandlerFunc {
+// EventsHandler handles the raw events query page using eventstore.Logs()
+func (p *AdminProvider) EventsHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Parse query parameters
 		originatorID := r.URL.Query().Get("originator_id")
 		eventType := r.URL.Query().Get("event_type")
 		dateFrom := r.URL.Query().Get("date_from")
 		dateTo := r.URL.Query().Get("date_to")
-		page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-		if page < 0 {
-			page = 0
-		}
+		fromID, _ := strconv.ParseUint(r.URL.Query().Get("from_id"), 10, 64)
 
-		// Build query (no date filtering in SQL since created_at doesn't exist)
-		query := db.Model(&StoredEvent{})
-
-		if originatorID != "" {
-			query = query.Where("originator_id = ?", originatorID)
-		}
-		if eventType != "" {
-			query = query.Where("event_type LIKE ?", "%"+eventType+"%")
-		}
-
-		// Get all matching events (we'll filter by date in memory)
-		var events []StoredEvent
-		if err := query.Order("originator_version DESC").
-			Find(&events).Error; err != nil {
-			log.Printf("Error querying events: %v", err)
-			http.Error(w, "Error querying events", http.StatusInternalServerError)
-			return
-		}
-
-		// Parse timestamps and apply date filters
-		var eventRows []EventRow
+		// Parse date filters
 		var dateFromTime, dateToTime time.Time
 		if dateFrom != "" {
 			dateFromTime, _ = time.Parse("2006-01-02T15:04", dateFrom)
@@ -189,56 +143,68 @@ func (p *AdminProvider) EventsHandler(db *gorm.DB) http.HandlerFunc {
 			dateToTime, _ = time.Parse("2006-01-02T15:04", dateTo)
 		}
 
-		for _, e := range events {
-			// Parse timestamp from event payload
-			var payloadData map[string]interface{}
-			timestamp := time.Time{}
-			if err := json.Unmarshal([]byte(e.Payload), &payloadData); err == nil {
-				if occurredOnStr, ok := payloadData["occurredOn"].(string); ok {
-					timestamp, _ = time.Parse(time.RFC3339, occurredOnStr)
-				}
-			}
+		// Use eventstore.Logs() to get events
+		// Note: Logs() returns all events in the system, we filter in memory
+		pageSize := 50
+		logs, err := p.eventStore.Logs(fromID, uint32(pageSize*10), "")
+		if err != nil {
+			log.Printf("Error querying logs: %v", err)
+			http.Error(w, "Error querying logs", http.StatusInternalServerError)
+			return
+		}
 
-			// Apply date filters
-			if !dateFromTime.IsZero() && timestamp.Before(dateFromTime) {
+		// Filter and convert to EventRows
+		var eventRows []EventRow
+		for _, logEntry := range logs {
+			event := logEntry.Event
+
+			// Filter by originator ID
+			if originatorID != "" && event.Originator.ID != originatorID {
 				continue
 			}
-			if !dateToTime.IsZero() && timestamp.After(dateToTime) {
+
+			// Filter by event type
+			if eventType != "" && !strings.Contains(event.EventType, eventType) {
+				continue
+			}
+
+			// Filter by date
+			if !dateFromTime.IsZero() && event.OccurredOn.Before(dateFromTime) {
+				continue
+			}
+			if !dateToTime.IsZero() && event.OccurredOn.After(dateToTime) {
 				continue
 			}
 
 			eventRows = append(eventRows, EventRow{
-				OriginatorID:      e.OriginatorID,
-				OriginatorVersion: e.OriginatorVersion,
-				EventType:         e.EventType,
-				Payload:           e.Payload,
-				OccurredOn:        timestamp,
+				OriginatorID:      event.Originator.ID,
+				OriginatorVersion: event.Originator.Version,
+				EventType:         event.EventType,
+				Payload:           event.Payload,
+				OccurredOn:        event.OccurredOn,
 			})
 		}
 
 		// Apply pagination
-		pageSize := 50
-		offset := page * pageSize
-		hasMore := len(eventRows) > offset+pageSize
+		hasMore := len(eventRows) >= pageSize
+		if len(eventRows) > pageSize {
+			eventRows = eventRows[:pageSize]
+		}
 
-		endIdx := offset + pageSize
-		if endIdx > len(eventRows) {
-			endIdx = len(eventRows)
+		nextID := fromID
+		if len(logs) > 0 {
+			nextID = logs[len(logs)-1].ID + 1
 		}
-		if offset > len(eventRows) {
-			offset = len(eventRows)
-		}
-		paginatedEvents := eventRows[offset:endIdx]
 
 		data := EventsPageData{
 			Title:        "Raw Events",
-			Events:       paginatedEvents,
+			Events:       eventRows,
 			OriginatorID: originatorID,
 			EventType:    eventType,
 			DateFrom:     dateFrom,
 			DateTo:       dateTo,
-			Page:         page,
-			NextPage:     page + 1,
+			Page:         int(fromID / uint64(pageSize)),
+			NextPage:     int(nextID / uint64(pageSize)),
 			HasMore:      hasMore,
 		}
 
@@ -257,8 +223,8 @@ func (p *AdminProvider) EventsHandler(db *gorm.DB) http.HandlerFunc {
 	}
 }
 
-// AppLogHandler handles the application log query page
-func (p *AdminProvider) AppLogHandler(db *gorm.DB) http.HandlerFunc {
+// AppLogHandler handles the application log query page using eventstore.Logs()
+func (p *AdminProvider) AppLogHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Parse query parameters
 		partitionID := r.URL.Query().Get("partition_id")
@@ -267,69 +233,53 @@ func (p *AdminProvider) AppLogHandler(db *gorm.DB) http.HandlerFunc {
 		dateTo := r.URL.Query().Get("date_to")
 		fromID, _ := strconv.ParseUint(r.URL.Query().Get("from_id"), 10, 64)
 
-		// Build query
-		query := db.Model(&StoredLogEntry{})
-
-		if partitionID != "" {
-			query = query.Where("partition_id = ?", partitionID)
+		// Parse date filters
+		var dateFromTime, dateToTime time.Time
+		if dateFrom != "" {
+			dateFromTime, _ = time.Parse("2006-01-02T15:04", dateFrom)
 		}
-		if fromID > 0 {
-			query = query.Where("id >= ?", fromID)
+		if dateTo != "" {
+			dateToTime, _ = time.Parse("2006-01-02T15:04", dateTo)
 		}
 
-		// For event type and date filtering, we need to parse the JSON payload
+		// Use eventstore.Logs() with partition filter
 		pageSize := 50
-
-		var entries []StoredLogEntry
-		if err := query.Order("id ASC").
-			Limit(pageSize + 1).
-			Find(&entries).Error; err != nil {
+		logs, err := p.eventStore.Logs(fromID, uint32(pageSize+1), partitionID)
+		if err != nil {
 			log.Printf("Error querying app log: %v", err)
 			http.Error(w, "Error querying app log", http.StatusInternalServerError)
 			return
 		}
 
-		log.Printf("AppLog query returned %d entries (partition_id=%s, fromID=%d)", len(entries), partitionID, fromID)
+		log.Printf("AppLog query returned %d entries (partition_id=%s, fromID=%d)", len(logs), partitionID, fromID)
 
 		// Check if there are more results
-		hasMore := len(entries) > pageSize
+		hasMore := len(logs) > pageSize
 		if hasMore {
-			entries = entries[:pageSize]
+			logs = logs[:pageSize]
 		}
 
-		// Parse event payloads and apply filters
+		// Filter and convert to AppLogRows
 		var logRows []AppLogRow
-		for _, entry := range entries {
-			var event types.Event
-			if err := json.Unmarshal([]byte(entry.EventPayload), &event); err != nil {
-				log.Printf("Error parsing event payload: %v", err)
-				continue
-			}
+		for _, logEntry := range logs {
+			event := logEntry.Event
 
-			// Apply event type filter
+			// Filter by event type
 			if eventType != "" && !strings.Contains(event.EventType, eventType) {
 				continue
 			}
 
-			// Apply date filters
-			if dateFrom != "" {
-				if t, err := time.Parse("2006-01-02T15:04", dateFrom); err == nil {
-					if event.OccurredOn.Before(t) {
-						continue
-					}
-				}
+			// Filter by date
+			if !dateFromTime.IsZero() && event.OccurredOn.Before(dateFromTime) {
+				continue
 			}
-			if dateTo != "" {
-				if t, err := time.Parse("2006-01-02T15:04", dateTo); err == nil {
-					if event.OccurredOn.After(t) {
-						continue
-					}
-				}
+			if !dateToTime.IsZero() && event.OccurredOn.After(dateToTime) {
+				continue
 			}
 
 			logRows = append(logRows, AppLogRow{
-				ID:                entry.ID,
-				PartitionID:       entry.PartitionID,
+				ID:                logEntry.ID,
+				PartitionID:       common.ExtractEntityType(event),
 				OriginatorID:      event.Originator.ID,
 				OriginatorVersion: event.Originator.Version,
 				EventType:         event.EventType,
@@ -338,9 +288,9 @@ func (p *AdminProvider) AppLogHandler(db *gorm.DB) http.HandlerFunc {
 			})
 		}
 
-		nextID := uint64(0)
-		if len(entries) > 0 {
-			nextID = entries[len(entries)-1].ID + 1
+		nextID := fromID
+		if len(logs) > 0 {
+			nextID = logs[len(logs)-1].ID + 1
 		}
 
 		data := AppLogPageData{
@@ -370,18 +320,34 @@ func (p *AdminProvider) AppLogHandler(db *gorm.DB) http.HandlerFunc {
 	}
 }
 
-// CrudHandler handles the CRUD entities page
-func (p *AdminProvider) CrudHandler(db *gorm.DB) http.HandlerFunc {
+// CrudHandler handles the CRUD entities page using GetPartitions() and List()
+func (p *AdminProvider) CrudHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		entityType := r.URL.Query().Get("type")
 
 		if entityType == "" {
-			// Show entity types list
-			entityTypes, err := p.discoverEntityTypes(db)
+			// Show entity types list using GetPartitions()
+			partitions, err := p.eventStore.GetPartitions()
 			if err != nil {
-				log.Printf("Error discovering entity types: %v", err)
-				http.Error(w, "Error discovering entity types", http.StatusInternalServerError)
+				log.Printf("Error getting partitions: %v", err)
+				http.Error(w, "Error getting partitions", http.StatusInternalServerError)
 				return
+			}
+
+			// Count entities for each partition using List()
+			var entityTypes []EntityType
+			for _, partition := range partitions {
+				// Get a sample list to count entities
+				originators, _, err := p.crudStore.List(partition, "0", 1000)
+				if err != nil {
+					log.Printf("Error listing entities for partition %s: %v", partition, err)
+					continue
+				}
+
+				entityTypes = append(entityTypes, EntityType{
+					Name:  partition,
+					Count: len(originators),
+				})
 			}
 
 			data := CrudPageData{
@@ -395,12 +361,48 @@ func (p *AdminProvider) CrudHandler(db *gorm.DB) http.HandlerFunc {
 				http.Error(w, "Error rendering template", http.StatusInternalServerError)
 			}
 		} else {
-			// Show entities of a specific type
-			entities, err := p.getEntitiesOfType(db, entityType)
+			// Show entities of a specific type using List()
+			originators, _, err := p.crudStore.List(entityType, "0", 100)
 			if err != nil {
-				log.Printf("Error getting entities: %v", err)
-				http.Error(w, "Error getting entities", http.StatusInternalServerError)
+				log.Printf("Error listing entities: %v", err)
+				http.Error(w, "Error listing entities", http.StatusInternalServerError)
 				return
+			}
+
+			// Get full details for each entity using Get()
+			var entities []CrudEntity
+			for _, originator := range originators {
+				payload, latestOriginator, err := p.crudStore.Get(originator, false)
+				if err != nil {
+					// Skip deleted or not found entities
+					log.Printf("Skipping entity %s: %v", originator.ID, err)
+					continue
+				}
+
+				// Parse the payload to get timestamp
+				var payloadData map[string]interface{}
+				updatedAt := time.Time{}
+				if err := json.Unmarshal([]byte(payload), &payloadData); err == nil {
+					if occurredOnStr, ok := payloadData["occurredOn"].(string); ok {
+						updatedAt, _ = time.Parse(time.RFC3339, occurredOnStr)
+					}
+				}
+
+				// Pretty print the JSON
+				var prettyJSON []byte
+				if err := json.Unmarshal([]byte(payload), &payloadData); err == nil {
+					prettyJSON, _ = json.MarshalIndent(payloadData, "", "  ")
+				} else {
+					prettyJSON = []byte(payload)
+				}
+
+				entities = append(entities, CrudEntity{
+					OriginatorID: originator.ID,
+					Version:      latestOriginator.Version,
+					Data:         string(prettyJSON),
+					UpdatedAt:    updatedAt,
+					IsDeleted:    false,
+				})
 			}
 
 			data := CrudPageData{
@@ -418,8 +420,8 @@ func (p *AdminProvider) CrudHandler(db *gorm.DB) http.HandlerFunc {
 	}
 }
 
-// CrudEntityDetailHandler handles the entity detail page with event history
-func (p *AdminProvider) CrudEntityDetailHandler(db *gorm.DB) http.HandlerFunc {
+// CrudEntityDetailHandler handles the entity detail page using eventstore.Get()
+func (p *AdminProvider) CrudEntityDetailHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		entityType := r.URL.Query().Get("type")
 		originatorID := r.URL.Query().Get("id")
@@ -429,73 +431,57 @@ func (p *AdminProvider) CrudEntityDetailHandler(db *gorm.DB) http.HandlerFunc {
 			return
 		}
 
-		// Get all events for this entity
-		var storedEvents []StoredEvent
-		if err := db.Where("originator_id = ?", originatorID).
-			Order("originator_version ASC").
-			Find(&storedEvents).Error; err != nil {
+		// Get all events for this entity using eventstore.Get()
+		originator := &types.Originator{ID: originatorID}
+		events, err := p.eventStore.Get(originator, false)
+		if err != nil {
 			log.Printf("Error getting entity events: %v", err)
 			http.Error(w, "Error getting entity events", http.StatusInternalServerError)
 			return
 		}
 
-		if len(storedEvents) == 0 {
+		if len(events) == 0 {
 			http.Error(w, "Entity not found", http.StatusNotFound)
 			return
 		}
 
-		// Replay events to get current state
-		currentState := make(map[string]interface{})
+		// Get current state using crudstore.Get()
+		payload, latestOriginator, err := p.crudStore.Get(originator, true) // true to include deleted
 		isDeleted := false
-		var lastEvent StoredEvent
-		var lastTimestamp time.Time
-
-		for _, event := range storedEvents {
-			lastEvent = event
-
-			// Parse timestamp from payload
-			var payloadData map[string]interface{}
-			if err := json.Unmarshal([]byte(event.Payload), &payloadData); err == nil {
-				if occurredOnStr, ok := payloadData["occurredOn"].(string); ok {
-					lastTimestamp, _ = time.Parse(time.RFC3339, occurredOnStr)
-				}
-			}
-
-			if strings.HasSuffix(event.EventType, ".Created") {
-				// Full object
-				currentState = payloadData
-			} else if strings.HasSuffix(event.EventType, ".Updated") {
-				// Merge patch
-				for k, v := range payloadData {
-					if k != "occurredOn" {
-						currentState[k] = v
-					}
-				}
-			} else if strings.HasSuffix(event.EventType, ".Deleted") {
+		if err != nil {
+			// Check if it's deleted
+			if strings.Contains(err.Error(), "deleted") {
 				isDeleted = true
+				// Try to reconstruct state from events
+				payload = "{}"
+			} else {
+				log.Printf("Error getting entity state: %v", err)
+				http.Error(w, "Error getting entity state", http.StatusInternalServerError)
+				return
 			}
 		}
 
-		// Convert current state to JSON
-		stateJSON, _ := json.MarshalIndent(currentState, "", "  ")
+		// Pretty print the current state
+		var stateData map[string]interface{}
+		var stateJSON []byte
+		if err := json.Unmarshal([]byte(payload), &stateData); err == nil {
+			stateJSON, _ = json.MarshalIndent(stateData, "", "  ")
+		} else {
+			stateJSON = []byte(payload)
+		}
+
+		// Get last updated time from events
+		lastEvent := events[len(events)-1]
+		updatedAt := lastEvent.OccurredOn
 
 		// Convert events to template data
-		eventHistory := make([]EntityEvent, len(storedEvents))
-		for i, e := range storedEvents {
-			// Parse timestamp for this event
-			var payloadData map[string]interface{}
-			eventTimestamp := time.Time{}
-			if err := json.Unmarshal([]byte(e.Payload), &payloadData); err == nil {
-				if occurredOnStr, ok := payloadData["occurredOn"].(string); ok {
-					eventTimestamp, _ = time.Parse(time.RFC3339, occurredOnStr)
-				}
-			}
-
+		eventHistory := make([]EntityEvent, len(events))
+		for i, e := range events {
 			eventHistory[i] = EntityEvent{
-				Version:    e.OriginatorVersion,
+				Version:    e.Originator.Version,
 				EventType:  e.EventType,
 				Payload:    e.Payload,
-				OccurredOn: eventTimestamp,
+				OccurredOn: e.OccurredOn,
 			}
 		}
 
@@ -505,9 +491,9 @@ func (p *AdminProvider) CrudEntityDetailHandler(db *gorm.DB) http.HandlerFunc {
 			OriginatorID: originatorID,
 			Entity: CrudEntity{
 				OriginatorID: originatorID,
-				Version:      lastEvent.OriginatorVersion,
+				Version:      latestOriginator.Version,
 				Data:         string(stateJSON),
-				UpdatedAt:    lastTimestamp,
+				UpdatedAt:    updatedAt,
 				IsDeleted:    isDeleted,
 			},
 			Events: eventHistory,
@@ -520,128 +506,16 @@ func (p *AdminProvider) CrudEntityDetailHandler(db *gorm.DB) http.HandlerFunc {
 	}
 }
 
-// discoverEntityTypes queries the database to find all unique entity types
-func (p *AdminProvider) discoverEntityTypes(db *gorm.DB) ([]EntityType, error) {
-	// Query distinct partition IDs from stored_log_entries
-	var partitions []string
-	if err := db.Table("stored_log_entries").
-		Select("DISTINCT partition_id").
-		Pluck("partition_id", &partitions).Error; err != nil {
-		return nil, err
-	}
-
-	log.Printf("Found %d distinct partitions: %v", len(partitions), partitions)
-
-	// Count entities for each partition
-	var entityTypes []EntityType
-	for _, partition := range partitions {
-		// Skip empty partition IDs
-		if partition == "" {
-			continue
-		}
-		// Count unique originator IDs for this partition
-		type CountResult struct {
-			Count int
-		}
-		var result CountResult
-		if err := db.Table("stored_events").
-			Select("COUNT(DISTINCT originator_id) as count").
-			Where("event_type LIKE ?", partition+".%").
-			Scan(&result).Error; err != nil {
-			log.Printf("Error counting entities for partition %s: %v", partition, err)
-			continue
-		}
-
-		entityTypes = append(entityTypes, EntityType{
-			Name:  partition,
-			Count: result.Count,
-		})
-	}
-
-	return entityTypes, nil
-}
-
-// getEntitiesOfType retrieves all entities of a specific type with their current state
-func (p *AdminProvider) getEntitiesOfType(db *gorm.DB, entityType string) ([]CrudEntity, error) {
-	// Get all unique originator IDs for this entity type
-	var originatorIDs []string
-	if err := db.Table("stored_events").
-		Where("event_type LIKE ?", entityType+".%").
-		Group("originator_id").
-		Pluck("originator_id", &originatorIDs).Error; err != nil {
-		return nil, err
-	}
-
-	var entities []CrudEntity
-
-	for _, id := range originatorIDs {
-		// Get all events for this entity
-		var storedEvents []StoredEvent
-		if err := db.Where("originator_id = ?", id).
-			Order("originator_version ASC").
-			Find(&storedEvents).Error; err != nil {
-			log.Printf("Error getting events for entity %s: %v", id, err)
-			continue
-		}
-
-		if len(storedEvents) == 0 {
-			continue
-		}
-
-		// Replay events to get current state
-		currentState := make(map[string]interface{})
-		isDeleted := false
-		var lastEvent StoredEvent
-		var lastTimestamp time.Time
-
-		for _, event := range storedEvents {
-			lastEvent = event
-
-			// Parse timestamp from payload
-			var payloadData map[string]interface{}
-			if err := json.Unmarshal([]byte(event.Payload), &payloadData); err == nil {
-				if occurredOnStr, ok := payloadData["occurredOn"].(string); ok {
-					lastTimestamp, _ = time.Parse(time.RFC3339, occurredOnStr)
-				}
-			}
-
-			if strings.HasSuffix(event.EventType, ".Created") {
-				currentState = payloadData
-			} else if strings.HasSuffix(event.EventType, ".Updated") {
-				for k, v := range payloadData {
-					if k != "occurredOn" {
-						currentState[k] = v
-					}
-				}
-			} else if strings.HasSuffix(event.EventType, ".Deleted") {
-				isDeleted = true
-			}
-		}
-
-		stateJSON, _ := json.Marshal(currentState)
-
-		entities = append(entities, CrudEntity{
-			OriginatorID: id,
-			Version:      lastEvent.OriginatorVersion,
-			Data:         string(stateJSON),
-			UpdatedAt:    lastTimestamp,
-			IsDeleted:    isDeleted,
-		})
-	}
-
-	return entities, nil
-}
-
 // SetupRoutes configures all HTTP routes for the admin service
-func (p *AdminProvider) SetupRoutes(db *gorm.DB, mux *http.ServeMux) {
+func (p *AdminProvider) SetupRoutes(mux *http.ServeMux) {
 	// Static files
 	fs := http.FileServer(http.Dir("./static"))
 	mux.Handle("/static/", http.StripPrefix("/static/", fs))
 
 	// Routes
-	mux.HandleFunc("/", p.HomeHandler(db))
-	mux.HandleFunc("/events", p.EventsHandler(db))
-	mux.HandleFunc("/applog", p.AppLogHandler(db))
-	mux.HandleFunc("/crud", p.CrudHandler(db))
-	mux.HandleFunc("/crud/entity", p.CrudEntityDetailHandler(db))
+	mux.HandleFunc("/", p.HomeHandler())
+	mux.HandleFunc("/events", p.EventsHandler())
+	mux.HandleFunc("/applog", p.AppLogHandler())
+	mux.HandleFunc("/crud", p.CrudHandler())
+	mux.HandleFunc("/crud/entity", p.CrudEntityDetailHandler())
 }
