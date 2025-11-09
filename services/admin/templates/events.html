@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}} - ESKit Admin</title>
+    <script src="https://unpkg.com/htmx.org@2.0.0"></script>
+    <script src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js" defer></script>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="navbar-brand">
+                <a href="/">ESKit Admin</a>
+            </div>
+            <div class="navbar-menu">
+                <a href="/events" class="nav-link">Raw Events</a>
+                <a href="/applog" class="nav-link">Application Log</a>
+                <a href="/crud" class="nav-link">CRUD Entities</a>
+            </div>
+        </div>
+    </nav>
+    <main class="container">
+        <div class="page-header">
+            <h1>Raw Events Query</h1>
+            <p class="subtitle">Query events directly from the event store</p>
+        </div>
+
+        <div class="filters-card" x-data="{ showFilters: true }">
+            <div class="filters-header" @click="showFilters = !showFilters">
+                <h3>Filters</h3>
+                <span x-text="showFilters ? '▼' : '▶'"></span>
+            </div>
+            <form class="filters-form" hx-get="/events" hx-target="#events-table" hx-swap="outerHTML" x-show="showFilters">
+                <div class="filter-group">
+                    <label for="originator_id">Originator ID</label>
+                    <input type="text" id="originator_id" name="originator_id" value="{{.OriginatorID}}" placeholder="Entity UUID">
+                </div>
+                <div class="filter-group">
+                    <label for="event_type">Event Type</label>
+                    <input type="text" id="event_type" name="event_type" value="{{.EventType}}" placeholder="e.g., User.Created">
+                </div>
+                <div class="filter-group">
+                    <label for="date_from">Date From</label>
+                    <input type="datetime-local" id="date_from" name="date_from" value="{{.DateFrom}}">
+                </div>
+                <div class="filter-group">
+                    <label for="date_to">Date To</label>
+                    <input type="datetime-local" id="date_to" name="date_to" value="{{.DateTo}}">
+                </div>
+                <div class="filter-actions">
+                    <button type="submit" class="btn btn-primary">Apply Filters</button>
+                    <button type="button" class="btn btn-secondary" onclick="window.location.href='/events'">Clear</button>
+                </div>
+            </form>
+        </div>
+
+        {{template "events-table" .}}
+    </main>
+</body>
+</html>
+
+{{define "events-table"}}
+<div id="events-table">
+    {{if .Events}}
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Originator ID</th>
+                    <th>Version</th>
+                    <th>Event Type</th>
+                    <th>Payload</th>
+                    <th>Occurred On</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .Events}}
+                <tr x-data="{ expanded: false }">
+                    <td class="font-mono">{{.OriginatorID}}</td>
+                    <td>{{.OriginatorVersion}}</td>
+                    <td><span class="badge">{{.EventType}}</span></td>
+                    <td>
+                        <div class="payload-cell">
+                            <code class="payload-preview" :class="{ 'expanded': expanded }" @click="expanded = !expanded">{{.Payload}}</code>
+                        </div>
+                    </td>
+                    <td class="nowrap">{{.OccurredOn.Format "2006-01-02 15:04:05"}}</td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+    {{if .HasMore}}
+    <div class="pagination">
+        <button class="btn btn-secondary"
+                hx-get="/events?page={{.NextPage}}&originator_id={{.OriginatorID}}&event_type={{.EventType}}&date_from={{.DateFrom}}&date_to={{.DateTo}}"
+                hx-target="#events-table"
+                hx-swap="outerHTML">
+            Load More
+        </button>
+    </div>
+    {{end}}
+    {{else}}
+    <div class="empty-state">
+        <p>No events found. Try adjusting your filters.</p>
+    </div>
+    {{end}}
+</div>
+{{end}}

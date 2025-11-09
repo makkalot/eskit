@@ -38,7 +38,21 @@ services:
     ports:
       - "8081:8081"
     environment:
-      - DB_URI=inmemory://
+      - DB_URI=host=db port=5432 user=postgres dbname=eventsourcing password=t00r sslmode=disable
+    links:
+      - db
+
+  admin:
+    build:
+      dockerfile: "./services/admin/Dockerfile"
+      context: "."
+    ports:
+      - "8082:8082"
+    environment:
+      - DB_URI=host=db port=5432 user=postgres dbname=eventsourcing password=t00r sslmode=disable
+      - DB_DIALECT=postgres
+    links:
+      - db
 
   gotest:
     build:
@@ -51,7 +65,9 @@ services:
     environment:
       - USERS_ENDPOINT=users:8080
       - CAMCONFIG_ENDPOINT=camconfig:8081
+      - ADMIN_ENDPOINT=admin:8082
     links:
       - db
       - users
       - camconfig
+      - admin

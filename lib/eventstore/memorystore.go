@@ -130,3 +130,21 @@ func (s *InMemoryStore) Logs(fromID uint64, size uint32, pipelineID string) ([]*
 
 	return finalResults, nil
 }
+
+func (s *InMemoryStore) GetPartitions() ([]string, error) {
+	partitionMap := make(map[string]bool)
+	
+	for _, log := range s.logs {
+		partitionID := common.ExtractEntityType(log.Event)
+		if partitionID != "" {
+			partitionMap[partitionID] = true
+		}
+	}
+	
+	var partitions []string
+	for partition := range partitionMap {
+		partitions = append(partitions, partition)
+	}
+	
+	return partitions, nil
+}

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}} - ESKit Admin</title>
+    <script src="https://unpkg.com/htmx.org@2.0.0"></script>
+    <script src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js" defer></script>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="navbar-brand">
+                <a href="/">ESKit Admin</a>
+            </div>
+            <div class="navbar-menu">
+                <a href="/events" class="nav-link">Raw Events</a>
+                <a href="/applog" class="nav-link">Application Log</a>
+                <a href="/crud" class="nav-link">CRUD Entities</a>
+            </div>
+        </div>
+    </nav>
+    <main class="container">
+        <div class="page-header">
+            <h1>Entity Details</h1>
+            <div class="breadcrumb">
+                <a href="/crud">All Types</a>
+                <span>/</span>
+                <a href="/crud?type={{.EntityType}}">{{.EntityType}}</a>
+                <span>/</span>
+                <span class="font-mono">{{.OriginatorID}}</span>
+            </div>
+        </div>
+
+        <div class="detail-card">
+            <h3>Current State</h3>
+            <div class="detail-info">
+                <div class="info-row">
+                    <span class="info-label">Originator ID:</span>
+                    <span class="font-mono">{{.OriginatorID}}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Version:</span>
+                    <span>{{.Entity.Version}}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Status:</span>
+                    {{if .Entity.IsDeleted}}
+                    <span class="badge badge-deleted">Deleted</span>
+                    {{else}}
+                    <span class="badge badge-active">Active</span>
+                    {{end}}
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Last Updated:</span>
+                    <span>{{.Entity.UpdatedAt.Format "2006-01-02 15:04:05"}}</span>
+                </div>
+            </div>
+            <div class="detail-payload">
+                <h4>Data:</h4>
+                <pre><code>{{.Entity.Data}}</code></pre>
+            </div>
+        </div>
+
+        <div class="detail-card">
+            <h3>Event History</h3>
+            <div class="timeline">
+                {{range .Events}}
+                <div class="timeline-item">
+                    <div class="timeline-marker">
+                        <div class="marker-dot
+                            {{if hasSuffix .EventType "Created"}}marker-created{{end}}
+                            {{if hasSuffix .EventType "Updated"}}marker-updated{{end}}
+                            {{if hasSuffix .EventType "Deleted"}}marker-deleted{{end}}"></div>
+                    </div>
+                    <div class="timeline-content">
+                        <div class="timeline-header">
+                            <span class="badge">{{.EventType}}</span>
+                            <span class="timeline-version">v{{.Version}}</span>
+                            <span class="timeline-date">{{.OccurredOn.Format "2006-01-02 15:04:05"}}</span>
+                        </div>
+                        <div class="timeline-payload" x-data="{ expanded: false }">
+                            <code class="payload-preview" :class="{ 'expanded': expanded }" @click="expanded = !expanded">{{.Payload}}</code>
+                        </div>
+                    </div>
+                </div>
+                {{end}}
+            </div>
+        </div>
+    </main>
+</body>
+</html>

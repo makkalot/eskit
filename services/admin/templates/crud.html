@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}} - ESKit Admin</title>
+    <script src="https://unpkg.com/htmx.org@2.0.0"></script>
+    <script src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js" defer></script>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="navbar-brand">
+                <a href="/">ESKit Admin</a>
+            </div>
+            <div class="navbar-menu">
+                <a href="/events" class="nav-link">Raw Events</a>
+                <a href="/applog" class="nav-link">Application Log</a>
+                <a href="/crud" class="nav-link">CRUD Entities</a>
+            </div>
+        </div>
+    </nav>
+    <main class="container">
+        <div class="page-header">
+            <h1>CRUD Entities</h1>
+            <p class="subtitle">Browse entities managed by CRUD store</p>
+        </div>
+
+        {{if .ShowingEntities}}
+            <div class="breadcrumb">
+                <a href="/crud">All Types</a>
+                <span>/</span>
+                <span>{{.SelectedType}}</span>
+            </div>
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Originator ID</th>
+                            <th>Version</th>
+                            <th>Status</th>
+                            <th>Current State</th>
+                            <th>Last Updated</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{range .Entities}}
+                        <tr>
+                            <td class="font-mono">{{.OriginatorID}}</td>
+                            <td>{{.Version}}</td>
+                            <td>
+                                {{if .IsDeleted}}
+                                <span class="badge badge-deleted">Deleted</span>
+                                {{else}}
+                                <span class="badge badge-active">Active</span>
+                                {{end}}
+                            </td>
+                            <td>
+                                <div class="payload-cell" x-data="{ expanded: false }">
+                                    <code class="payload-preview" :class="{ 'expanded': expanded }" @click="expanded = !expanded">{{.Data}}</code>
+                                </div>
+                            </td>
+                            <td class="nowrap">{{.UpdatedAt.Format "2006-01-02 15:04:05"}}</td>
+                            <td>
+                                <a href="/crud/entity?type={{$.SelectedType}}&id={{.OriginatorID}}" class="btn btn-sm">View History</a>
+                            </td>
+                        </tr>
+                        {{end}}
+                    </tbody>
+                </table>
+                {{if not .Entities}}
+                <div class="empty-state">
+                    <p>No entities found for type "{{.SelectedType}}".</p>
+                </div>
+                {{end}}
+            </div>
+        {{else}}
+            <div class="entity-types-grid">
+                {{range .EntityTypes}}
+                <a href="/crud?type={{.Name}}" class="entity-type-card">
+                    <div class="entity-type-name">{{.Name}}</div>
+                    <div class="entity-type-count">{{.Count}} entities</div>
+                </a>
+                {{end}}
+                {{if not .EntityTypes}}
+                <div class="empty-state">
+                    <p>No entity types found in the database.</p>
+                </div>
+                {{end}}
+            </div>
+        {{end}}
+    </main>
+</body>
+</html>
