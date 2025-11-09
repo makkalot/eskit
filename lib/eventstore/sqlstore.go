@@ -14,11 +14,11 @@ import (
 )
 
 type StoredEvent struct {
-	OriginatorID      string `gorm:"primary_key; not null"`
-	OriginatorVersion uint   `gorm:"primary_key; not null"`
+	OriginatorID      string `gorm:"not null; unique_index:idx_originator_composite"`
+	OriginatorVersion uint   `gorm:"not null; unique_index:idx_originator_composite"`
 	EventType         string `gorm:"type:varchar(255); not null; index"`
 	Payload           string `gorm:"type:text"`
-	CreatedAt         time.Timer
+	CreatedAt         time.Time
 }
 
 type StoredLogEntry struct {
@@ -26,7 +26,7 @@ type StoredLogEntry struct {
 	ApplicationID string `gorm:"type:varchar(255); not null; index:index_app_partition; default:'consumer'"`
 	PartitionID   string `gorm:"type:varchar(255); not null; index:index_app_partition"`
 	EventPayload  string `gorm:"type:text"`
-	CreatedAt     time.Timer
+	CreatedAt     time.Time
 }
 
 type SqlStore struct {
@@ -202,4 +202,26 @@ func (estore *SqlStore) Logs(fromID uint64, size uint32, pipelineID string) ([]*
 	}
 
 	return logs, nil
+}
+
+func (estore *SqlStore) GetPartitions() ([]string, error) {
+	var results []struct {
+		PartitionID string
+	}
+
+	err := estore.db.Table("stored_log_entries").
+		Select("DISTINCT partition_id").
+		Where("partition_id != ?", "").
+		Find(&results).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("fetching partitions: %v", err)
+	}
+
+	var partitions []string
+	for _, r := range results {
+		partitions = append(partitions, r.PartitionID)
+	}
+
+	return partitions, nil
 }

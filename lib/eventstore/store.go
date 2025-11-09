@@ -33,6 +33,7 @@ type Store interface {
 	Append(event *types.Event) error
 	Get(originator *types.Originator, fromVersion bool) ([]*types.Event, error)
 	Logs(fromID uint64, size uint32, pipelineID string) ([]*types.AppLogEntry, error)
+	GetPartitions() ([]string, error)
 }
 
 // StoreWithCleanup has the same methods as Store but also has Cleanup method

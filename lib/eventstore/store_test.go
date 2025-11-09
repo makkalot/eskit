@@ -208,3 +208,141 @@ func TestSqlStore(tm *testing.T) {
 		})
 	}
 }
+
+func TestGetPartitions(tm *testing.T) {
+	testCases := []struct {
+		name  string
+		store StoreWithCleanup
+		dbFile string
+	}{
+		{
+			"sql store",
+			nil, // Will be initialized in the test
+			"estore_partitions_sql.db",
+		},
+		{
+			"inmemory store",
+			NewInMemoryStore(),
+			"",
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc // capture range variable
+		tm.Run(tc.name, func(t *testing.T) {
+			var currentStore StoreWithCleanup
+
+			if tc.dbFile != "" {
+				// Clean up old test database if it exists
+				if _, err := os.Stat(tc.dbFile); err == nil {
+					os.Remove(tc.dbFile)
+				}
+
+				sqlStore, err := NewSqlStore("sqlite3", tc.dbFile)
+				assert.NoError(t, err)
+				assert.NotNil(t, sqlStore)
+				currentStore = sqlStore
+
+				// Clean up after test
+				t.Cleanup(func() {
+					if _, err := os.Stat(tc.dbFile); err == nil {
+						os.Remove(tc.dbFile)
+					}
+				})
+			} else {
+				currentStore = tc.store
+			}
+
+			// Initially should have no partitions
+			partitions, err := currentStore.GetPartitions()
+			assert.NoError(t, err)
+			assert.Len(t, partitions, 0)
+
+			// Add events for different entity types
+			projectID := uuid.Must(uuid.NewV4()).String()
+			userID := uuid.Must(uuid.NewV4()).String()
+			camConfigID := uuid.Must(uuid.NewV4()).String()
+
+			// Add Project event
+			projectEvent := &types.Event{
+				Originator: &types.Originator{
+					ID:      projectID,
+					Version: 1,
+				},
+				EventType:  "Project.Created",
+				Payload:    "{}",
+				OccurredOn: time.Now().UTC(),
+			}
+			err = currentStore.Append(projectEvent)
+			assert.NoError(t, err)
+
+			// Should have one partition
+			partitions, err = currentStore.GetPartitions()
+			assert.NoError(t, err)
+			assert.Len(t, partitions, 1)
+			assert.Contains(t, partitions, "Project")
+
+			// Add User event
+			userEvent := &types.Event{
+				Originator: &types.Originator{
+					ID:      userID,
+					Version: 1,
+				},
+				EventType:  "User.Created",
+				Payload:    "{}",
+				OccurredOn: time.Now().UTC(),
+			}
+			err = currentStore.Append(userEvent)
+			assert.NoError(t, err)
+
+			// Should have two partitions
+			partitions, err = currentStore.GetPartitions()
+			assert.NoError(t, err)
+			assert.Len(t, partitions, 2)
+			assert.Contains(t, partitions, "Project")
+			assert.Contains(t, partitions, "User")
+
+			// Add CamConfig event
+			camConfigEvent := &types.Event{
+				Originator: &types.Originator{
+					ID:      camConfigID,
+					Version: 1,
+				},
+				EventType:  "CamConfig.Created",
+				Payload:    "{}",
+				OccurredOn: time.Now().UTC(),
+			}
+			err = currentStore.Append(camConfigEvent)
+			assert.NoError(t, err)
+
+			// Should have three partitions
+			partitions, err = currentStore.GetPartitions()
+			assert.NoError(t, err)
+			assert.Len(t, partitions, 3)
+			assert.Contains(t, partitions, "Project")
+			assert.Contains(t, partitions, "User")
+			assert.Contains(t, partitions, "CamConfig")
+
+			// Add another User event - should not create duplicate partition
+			userEvent2 := &types.Event{
+				Originator: &types.Originator{
+					ID:      userID,
+					Version: 2,
+				},
+				EventType:  "User.Updated",
+				Payload:    "{}",
+				OccurredOn: time.Now().UTC(),
+			}
+			err = currentStore.Append(userEvent2)
+			assert.NoError(t, err)
+
+			// Should still have three partitions
+			partitions, err = currentStore.GetPartitions()
+			assert.NoError(t, err)
+			assert.Len(t, partitions, 3)
+			assert.Contains(t, partitions, "Project")
+			assert.Contains(t, partitions, "User")
+			assert.Contains(t, partitions, "CamConfig")
+		})
+	}
+}
