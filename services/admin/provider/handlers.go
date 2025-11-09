@@ -65,15 +65,16 @@ type AppLogRow struct {
 
 // AppLogPageData holds data for the applog page
 type AppLogPageData struct {
-	Title       string
-	Entries     []AppLogRow
-	PartitionID string
-	EventType   string
-	DateFrom    string
-	DateTo      string
-	FromID      uint64
-	NextID      uint64
-	HasMore     bool
+	Title        string
+	Entries      []AppLogRow
+	PartitionID  string
+	EventType    string
+	DateFrom     string
+	DateTo       string
+	FromID       uint64
+	NextID       uint64
+	HasMore      bool
+	OriginatorID string
 }
 
 // EntityType represents an entity type with count
@@ -98,6 +99,7 @@ type CrudPageData struct {
 	SelectedType    string
 	Entities        []CrudEntity
 	ShowingEntities bool
+	OriginatorID    string
 }
 
 // EntityEvent represents an event in entity history
@@ -294,15 +296,16 @@ func (p *AdminProvider) AppLogHandler() http.HandlerFunc {
 		}
 
 		data := AppLogPageData{
-			Title:       "Application Log",
-			Entries:     logRows,
-			PartitionID: partitionID,
-			EventType:   eventType,
-			DateFrom:    dateFrom,
-			DateTo:      dateTo,
-			FromID:      fromID,
-			NextID:      nextID,
-			HasMore:     hasMore,
+			Title:        "Application Log",
+			Entries:      logRows,
+			PartitionID:  partitionID,
+			EventType:    eventType,
+			DateFrom:     dateFrom,
+			DateTo:       dateTo,
+			FromID:       fromID,
+			NextID:       nextID,
+			HasMore:      hasMore,
+			OriginatorID: "", // App log doesn't filter by originator ID
 		}
 
 		// Check if this is an HTMX request for the table only
@@ -323,7 +326,9 @@ func (p *AdminProvider) AppLogHandler() http.HandlerFunc {
 // CrudHandler handles the CRUD entities page using GetPartitions() and List()
 func (p *AdminProvider) CrudHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("=== CrudHandler called with URL: %s, query: %s ===", r.URL.Path, r.URL.RawQuery)
 		entityType := r.URL.Query().Get("type")
+		log.Printf("=== Entity type: %s ===", entityType)
 
 		if entityType == "" {
 			// Show entity types list using GetPartitions()
@@ -354,6 +359,7 @@ func (p *AdminProvider) CrudHandler() http.HandlerFunc {
 				Title:           "CRUD Entities",
 				EntityTypes:     entityTypes,
 				ShowingEntities: false,
+				OriginatorID:    "", // CRUD list doesn't filter by originator ID
 			}
 
 			if err := templates.ExecuteTemplate(w, "crud.html", data); err != nil {
@@ -379,16 +385,22 @@ func (p *AdminProvider) CrudHandler() http.HandlerFunc {
 					continue
 				}
 
-				// Parse the payload to get timestamp
-				var payloadData map[string]interface{}
-				updatedAt := time.Time{}
-				if err := json.Unmarshal([]byte(payload), &payloadData); err == nil {
-					if occurredOnStr, ok := payloadData["occurredOn"].(string); ok {
-						updatedAt, _ = time.Parse(time.RFC3339, occurredOnStr)
+		// Get the events for this entity to find the latest timestamp
+		updatedAt := time.Time{}
+		events, err := p.eventStore.Logs(0, 1000, "")
+		if err == nil && len(events) > 0 {
+			// Filter events for this specific originator and find the latest timestamp
+			for _, entry := range events {
+				if entry.Event != nil && entry.Event.Originator != nil && entry.Event.Originator.ID == originator.ID {
+					if entry.Event.OccurredOn.After(updatedAt) {
+						updatedAt = entry.Event.OccurredOn
 					}
 				}
+			}
+		}
 
 				// Pretty print the JSON
+				var payloadData map[string]interface{}
 				var prettyJSON []byte
 				if err := json.Unmarshal([]byte(payload), &payloadData); err == nil {
 					prettyJSON, _ = json.MarshalIndent(payloadData, "", "  ")
@@ -410,6 +422,7 @@ func (p *AdminProvider) CrudHandler() http.HandlerFunc {
 				SelectedType:    entityType,
 				Entities:        entities,
 				ShowingEntities: true,
+				OriginatorID:    "", // CRUD entities list doesn't filter by originator ID
 			}
 
 			if err := templates.ExecuteTemplate(w, "crud.html", data); err != nil {
@@ -423,17 +436,32 @@ func (p *AdminProvider) CrudHandler() http.HandlerFunc {
 // CrudEntityDetailHandler handles the entity detail page using eventstore.Get()
 func (p *AdminProvider) CrudEntityDetailHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("=== CrudEntityDetailHandler called with URL: %s ===", r.URL.String())
 		entityType := r.URL.Query().Get("type")
 		originatorID := r.URL.Query().Get("id")
+		log.Printf("=== Entity type: %s, ID: %s ===", entityType, originatorID)
 
 		if entityType == "" || originatorID == "" {
 			http.Error(w, "Missing type or id parameter", http.StatusBadRequest)
 			return
 		}
 
-		// Get all events for this entity using eventstore.Get()
-		originator := &types.Originator{ID: originatorID}
-		events, err := p.eventStore.Get(originator, false)
+		// Get all events for this entity using eventstore.Logs() with originator filter
+		// Note: Using Logs() instead of Get() because Get() returns zero timestamps
+		logs, err := p.eventStore.Logs(0, 1000, "")
+		if err != nil {
+			log.Printf("Error getting entity events: %v", err)
+			http.Error(w, "Error getting entity events", http.StatusInternalServerError)
+			return
+		}
+
+		// Filter logs for this specific originator
+		var events []*types.Event
+		for _, logEntry := range logs {
+			if logEntry.Event.Originator.ID == originatorID {
+				events = append(events, logEntry.Event)
+			}
+		}
 		if err != nil {
 			log.Printf("Error getting entity events: %v", err)
 			http.Error(w, "Error getting entity events", http.StatusInternalServerError)
@@ -446,6 +474,7 @@ func (p *AdminProvider) CrudEntityDetailHandler() http.HandlerFunc {
 		}
 
 		// Get current state using crudstore.Get()
+		originator := &types.Originator{ID: originatorID}
 		payload, latestOriginator, err := p.crudStore.Get(originator, true) // true to include deleted
 		isDeleted := false
 		if err != nil {
