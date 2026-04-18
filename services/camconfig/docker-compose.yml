@@ -1,0 +1,26 @@
+version: '3'
+services:
+
+  camconfig:
+    build:
+      context: ../../
+      dockerfile: ./services/camconfig/Dockerfile.standalone
+    ports:
+      - "8081:8081"
+    environment:
+      - DB_URI=inmemory://
+    profiles:
+      - inmemory
+
+  camconfig-filestore:
+    build:
+      context: ../../
+      dockerfile: ./services/camconfig/Dockerfile.standalone
+    ports:
+      - "8081:8081"
+    environment:
+      - DB_URI=file:///data/camconfig.json
+    volumes:
+      - ./data:/data
+    profiles:
+      - filestore
