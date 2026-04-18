@@ -19,6 +19,7 @@ type FileMemoryStore struct {
 	read_file        *os.File
 	lastEvent        *storedFileEvent
 	lastEventLine    int64
+	lastByteOffset   int64
 	storedLogEntries []*storedLogEntry
 }
 
@@ -39,34 +40,89 @@ type storedLogEntry struct {
 	CreatedAt              int64
 	EventPayload           string
 	// the line number of the log entry in the file, used for pagination
-	// we can use this line number to seek the file for pagination, and we can also use it to track the last read position of the log entries
 	LineNumber int64
+	// byte offset of the start of this line in the file
+	ByteOffset int64
 }
 
-func NewFileMemoryStore(storePath string) *FileMemoryStore {
+func NewFileMemoryStore(storePath string) (*FileMemoryStore, error) {
 	basePath := filepath.Dir(storePath)
 
 	if _, err := os.Stat(basePath); os.IsNotExist(err) {
 		if err := os.MkdirAll(basePath, 0755); err != nil {
-			panic(fmt.Sprintf("failed to create store path: %v", err))
+			return nil, fmt.Errorf("failed to create store path: %v", err)
 		}
 	}
 
 	file, err := os.OpenFile(storePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		panic(fmt.Sprintf("failed to open store file: %v", err))
+		return nil, fmt.Errorf("failed to open store file: %v", err)
 	}
 
 	read_file, err := os.OpenFile(storePath, os.O_RDONLY, 0644)
 	if err != nil {
-		panic(fmt.Sprintf("failed to open store file for reading: %v", err))
+		file.Close()
+		return nil, fmt.Errorf("failed to open store file for reading: %v", err)
 	}
 
-	return &FileMemoryStore{
+	s := &FileMemoryStore{
 		storePath: storePath,
 		file:      file,
 		read_file: read_file,
 	}
+
+	if err := s.loadFromFile(); err != nil {
+		file.Close()
+		read_file.Close()
+		return nil, fmt.Errorf("failed to load existing events from file: %v", err)
+	}
+
+	return s, nil
+}
+
+// loadFromFile scans the existing file and reconstructs storedLogEntries,
+// lastEvent, lastEventLine, and lastByteOffset so that the store can resume
+// correctly after being reopened.
+func (s *FileMemoryStore) loadFromFile() error {
+	// Rewind to start for reading.
+	if _, err := s.read_file.Seek(0, io.SeekStart); err != nil {
+		return fmt.Errorf("failed to seek file: %w", err)
+	}
+
+	scanner := bufio.NewScanner(s.read_file)
+	var lineNumber int64
+	var byteOffset int64
+
+	for scanner.Scan() {
+		lineBytes := scanner.Bytes()
+		lineLen := int64(len(lineBytes)) + 1 // +1 for newline
+
+		var fileEvent storedFileEvent
+		if err := json.Unmarshal(lineBytes, &fileEvent); err != nil {
+			return fmt.Errorf("failed to unmarshal event on line %d: %w", lineNumber+1, err)
+		}
+
+		lineNumber++
+		entityType := common.ExtractEntityTypeFromStr(fileEvent.EventType)
+		logEntry := &storedLogEntry{
+			ID:                     uint64(lineNumber),
+			ApplicationID:          "default",
+			PartitionID:            entityType,
+			EventOriginatorId:      fileEvent.OriginatorID,
+			EventOriginatorVersion: fileEvent.OriginatorVersion,
+			CreatedAt:              fileEvent.CreatedAt,
+			LineNumber:             lineNumber,
+			ByteOffset:             byteOffset,
+		}
+
+		s.storedLogEntries = append(s.storedLogEntries, logEntry)
+		s.lastEvent = &fileEvent
+		s.lastEventLine = lineNumber
+		s.lastByteOffset += lineLen
+		byteOffset += lineLen
+	}
+
+	return scanner.Err()
 }
 
 func (s *FileMemoryStore) Cleanup() error {
@@ -97,83 +153,79 @@ func (s *FileMemoryStore) Append(event *types.Event) error {
 
 func (s *FileMemoryStore) Get(originator *types.Originator, fromVersion bool) ([]*types.Event, error) {
 	var events []*types.Event
-	var eventLines []int64
+	var qualifying []*storedLogEntry
 
 	for _, logEntry := range s.storedLogEntries {
-		if logEntry.EventOriginatorId == originator.ID {
+		if logEntry.EventOriginatorId != originator.ID {
+			continue
+		}
+		if originator.Version != 0 {
 			if fromVersion {
-				if logEntry.EventOriginatorVersion >= originator.Version {
-					eventLines = append(eventLines, logEntry.LineNumber)
+				// return events with version >= originator.Version
+				if logEntry.EventOriginatorVersion < originator.Version {
+					continue
 				}
 			} else {
-				eventLines = append(eventLines, logEntry.LineNumber)
+				// return events with version <= originator.Version
+				if logEntry.EventOriginatorVersion > originator.Version {
+					continue
+				}
 			}
 		}
+		qualifying = append(qualifying, logEntry)
 	}
 
-	if len(eventLines) == 0 {
+	if len(qualifying) == 0 {
 		return events, nil
 	}
 
-	targetLines := make(map[int64]struct{}, len(eventLines))
-	var firstLine, lastLine int64
-	for i, lineNo := range eventLines {
-		targetLines[lineNo] = struct{}{}
-		if i == 0 || lineNo < firstLine {
-			firstLine = lineNo
+	// Build byte-offset lookup for qualifying entries.
+	offsetMap := make(map[int64]*storedLogEntry, len(qualifying))
+	var firstOffset, lastOffset int64
+	for i, q := range qualifying {
+		offsetMap[q.ByteOffset] = q
+		if i == 0 || q.ByteOffset < firstOffset {
+			firstOffset = q.ByteOffset
 		}
-		if i == 0 || lineNo > lastLine {
-			lastLine = lineNo
+		if i == 0 || q.ByteOffset > lastOffset {
+			lastOffset = q.ByteOffset
 		}
 	}
 
-	// Seek directly to the first relevant line (1-based).
-	if err := s.seekToLine(int(firstLine)); err != nil {
+	// Seek to the first qualifying entry by byte offset.
+	if _, err := s.read_file.Seek(firstOffset, io.SeekStart); err != nil {
 		return nil, fmt.Errorf("failed to seek file: %w", err)
 	}
 
-	// We are already positioned at firstLine, so track line numbers accordingly.
-	currentLine := firstLine - 1
-	remaining := len(targetLines)
 	scanner := bufio.NewScanner(s.read_file)
+	currentOffset := firstOffset
 
 	for scanner.Scan() {
-		currentLine++
-		if currentLine > lastLine || remaining == 0 {
+		lineBytes := scanner.Bytes()
+		lineLen := int64(len(lineBytes)) + 1 // +1 for newline
+
+		if _, ok := offsetMap[currentOffset]; ok {
+			var fileEvent storedFileEvent
+			if err := json.Unmarshal(lineBytes, &fileEvent); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal event at offset %d: %w", currentOffset, err)
+			}
+
+			payload, _ := fileEvent.Payload.(string)
+			events = append(events, &types.Event{
+				Originator: &types.Originator{
+					ID:      fileEvent.OriginatorID,
+					Version: fileEvent.OriginatorVersion,
+				},
+				EventType:  fileEvent.EventType,
+				Payload:    payload,
+				OccurredOn: time.Unix(fileEvent.CreatedAt, 0).UTC(),
+			})
+		}
+
+		currentOffset += lineLen
+		if currentOffset > lastOffset {
 			break
 		}
-
-		if _, ok := targetLines[currentLine]; !ok {
-			continue
-		}
-
-		var fileEvent storedFileEvent
-		if err := json.Unmarshal(scanner.Bytes(), &fileEvent); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal event on line %d: %w", currentLine, err)
-		}
-
-		delete(targetLines, currentLine)
-		remaining--
-
-		if fileEvent.OriginatorID != originator.ID {
-			continue
-		}
-
-		if fromVersion && fileEvent.OriginatorVersion < originator.Version {
-			continue
-		}
-
-		payload, _ := fileEvent.Payload.(string)
-
-		events = append(events, &types.Event{
-			Originator: &types.Originator{
-				ID:      fileEvent.OriginatorID,
-				Version: fileEvent.OriginatorVersion,
-			},
-			EventType:  fileEvent.EventType,
-			Payload:    payload,
-			OccurredOn: time.Unix(fileEvent.CreatedAt, 0).UTC(),
-		})
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -184,48 +236,84 @@ func (s *FileMemoryStore) Get(originator *types.Originator, fromVersion bool) ([
 }
 
 func (s *FileMemoryStore) Logs(fromID uint64, size uint32, pipelineID string) ([]*types.AppLogEntry, error) {
-	var logs []*types.AppLogEntry
+	if size == 0 {
+		size = 20
+	}
 
-	start_index := 0
-	start_line := 0
-
-	for i, logEntry := range s.storedLogEntries {
+	// Collect qualifying log entries in order.
+	var qualified []*storedLogEntry
+	for _, logEntry := range s.storedLogEntries {
 		if logEntry.ID < fromID {
 			continue
 		}
 		if pipelineID != "" && logEntry.PartitionID != pipelineID {
 			continue
 		}
-
-		start_index = i
-		start_line = int(logEntry.LineNumber)
-		break
+		qualified = append(qualified, logEntry)
+		if uint32(len(qualified)) >= size {
+			break
+		}
 	}
 
-	s.seekToLine(start_line)
+	if len(qualified) == 0 {
+		return nil, nil
+	}
+
+	// Build byte-offset lookup.
+	offsetMap := make(map[int64]*storedLogEntry, len(qualified))
+	var firstOffset, lastOffset int64
+	for i, q := range qualified {
+		offsetMap[q.ByteOffset] = q
+		if i == 0 || q.ByteOffset < firstOffset {
+			firstOffset = q.ByteOffset
+		}
+		if i == 0 || q.ByteOffset > lastOffset {
+			lastOffset = q.ByteOffset
+		}
+	}
+
+	// Seek to first qualifying entry.
+	if _, err := s.read_file.Seek(firstOffset, io.SeekStart); err != nil {
+		return nil, fmt.Errorf("failed to seek file: %w", err)
+	}
+
+	var logs []*types.AppLogEntry
 	scanner := bufio.NewScanner(s.read_file)
+	currentOffset := firstOffset
 
-	currentIndex := start_index
 	for scanner.Scan() {
-		line := scanner.Text()
+		lineBytes := scanner.Bytes()
+		lineLen := int64(len(lineBytes)) + 1 // +1 for newline
 
-		logEntry := s.storedLogEntries[currentIndex]
-		if pipelineID != "" && logEntry.PartitionID != pipelineID {
-			continue
+		if logEntry, ok := offsetMap[currentOffset]; ok {
+			var fileEvent storedFileEvent
+			if err := json.Unmarshal(lineBytes, &fileEvent); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal event for log entry %d: %w", logEntry.ID, err)
+			}
+
+			payload, _ := fileEvent.Payload.(string)
+			event := &types.Event{
+				Originator: &types.Originator{
+					ID:      fileEvent.OriginatorID,
+					Version: fileEvent.OriginatorVersion,
+				},
+				EventType:  fileEvent.EventType,
+				Payload:    payload,
+				OccurredOn: time.Unix(fileEvent.CreatedAt, 0).UTC(),
+			}
+
+			logs = append(logs, &types.AppLogEntry{
+				ID:    logEntry.ID,
+				Event: event,
+			})
+
+			if uint32(len(logs)) >= size {
+				break
+			}
 		}
 
-		event := &types.Event{}
-		if err := json.Unmarshal([]byte(line), event); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal event for log entry %d: %w", logEntry.ID, err)
-		}
-
-		logs = append(logs, &types.AppLogEntry{
-			ID:    logEntry.ID,
-			Event: event,
-		})
-
-		currentIndex++
-		if size > 0 && uint32(len(logs)) >= size {
+		currentOffset += lineLen
+		if currentOffset > lastOffset {
 			break
 		}
 	}
@@ -280,7 +368,9 @@ func (s *FileMemoryStore) appendFileEvent(event *types.Event) error {
 		return fmt.Errorf("failed to marshal event: %v", err)
 	}
 
-	if _, err := s.file.Write(append(eventData, '\n')); err != nil {
+	lineByteOffset := s.lastByteOffset
+	lineBytes := append(eventData, '\n')
+	if _, err := s.file.Write(lineBytes); err != nil {
 		return fmt.Errorf("failed to write event to file: %v", err)
 	}
 
@@ -288,18 +378,18 @@ func (s *FileMemoryStore) appendFileEvent(event *types.Event) error {
 
 	s.lastEvent = fileEvent
 	s.lastEventLine++
+	s.lastByteOffset += int64(len(lineBytes))
 
 	entityType := common.ExtractEntityType(event)
 	logEntry := &storedLogEntry{
-		ID:            uint64(len(s.storedLogEntries) + 1),
-		ApplicationID: "default",
-		PartitionID:   entityType,
-		// keep payload empty for now, we can read the event from the file when we read the log entries
-		// it's kind of lazy loading, we can read the event from the file when we read the log entries, and we can also use the line number to seek the file for pagination
+		ID:                     uint64(len(s.storedLogEntries) + 1),
+		ApplicationID:          "default",
+		PartitionID:            entityType,
 		EventOriginatorId:      event.Originator.ID,
 		EventOriginatorVersion: event.Originator.Version,
 		CreatedAt:              time.Now().Unix(),
 		LineNumber:             s.lastEventLine,
+		ByteOffset:             lineByteOffset,
 	}
 
 	s.storedLogEntries = append(s.storedLogEntries, logEntry)
