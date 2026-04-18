@@ -136,15 +136,17 @@ func (s *FileMemoryStore) Cleanup() error {
 }
 
 func (s *FileMemoryStore) Append(event *types.Event) error {
-	latestEvent := s.lastEvent
-	if latestEvent == nil {
-		return s.appendFileEvent(event)
+	var latestVersion uint64
+	for i := len(s.storedLogEntries) - 1; i >= 0; i-- {
+		if s.storedLogEntries[i].EventOriginatorId == event.Originator.ID {
+			latestVersion = s.storedLogEntries[i].EventOriginatorVersion
+			break
+		}
 	}
-	latestVersion := latestEvent.OriginatorVersion
+
 	newVersion := event.Originator.Version
 
-	if newVersion <= latestVersion {
-		//log.Println("current store is like : ", spew.Sdump(s.eventStore))
+	if latestVersion > 0 && newVersion <= latestVersion {
 		return fmt.Errorf("you apply version : %d, db version is : %d for %s: %w", newVersion, latestVersion, event.Originator.ID, ErrDuplicate)
 	}
 

@@ -10,7 +10,9 @@ import (
 	"github.com/spf13/viper"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
+	"strings"
 )
 
 type CamConfigServiceConfig struct {
@@ -57,7 +59,19 @@ func main() {
 
 	// Create event store (in-memory for this example)
 	var estore eventstore.Store
-	if config.DbUri == "inmemory://" {
+	if strings.HasPrefix(config.DbUri, "file://") {
+		filePath := strings.TrimPrefix(config.DbUri, "file://")
+		dir := filepath.Dir(filePath)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			log.Fatalf("failed to create directory for file store: %v", err)
+		}
+		var err error
+		estore, err = eventstore.NewFileMemoryStore(filePath)
+		if err != nil {
+			log.Fatalf("failed to create file event store: %v", err)
+		}
+		log.Printf("Using file event store: %s", filePath)
+	} else if config.DbUri == "inmemory://" {
 		estore = eventstore.NewInMemoryStore()
 		log.Println("Using in-memory event store")
 	} else {

@@ -302,3 +302,84 @@ func TestFileStoreReopen(t *testing.T) {
 	// Duplicate append should be rejected.
 	assert.Error(t, store2.Append(e3))
 }
+
+func TestFileStoreMultipleOriginators(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "events-multi-*.jsonl")
+	assert.NoError(t, err)
+	tmpFilePath := tmpFile.Name()
+	tmpFile.Close()
+
+	t.Cleanup(func() {
+		os.Remove(tmpFilePath)
+	})
+
+	store, err := NewFileMemoryStore(tmpFilePath)
+	assert.NoError(t, err)
+	t.Cleanup(func() {
+		store.Cleanup()
+	})
+
+	originatorA := &types.Originator{ID: uuid.Must(uuid.NewV4()).String()}
+	originatorB := &types.Originator{ID: uuid.Must(uuid.NewV4()).String()}
+
+	// Create entity A with 2 events
+	eA1 := &types.Event{
+		Originator: &types.Originator{ID: originatorA.ID, Version: 1},
+		EventType:  "CamConfig.Created",
+		Payload:    `{"name":"camera-A"}`,
+		OccurredOn: time.Now().UTC(),
+	}
+	eA2 := &types.Event{
+		Originator: &types.Originator{ID: originatorA.ID, Version: 2},
+		EventType:  "CamConfig.Updated",
+		Payload:    `{"name":"camera-A-v2"}`,
+		OccurredOn: time.Now().UTC(),
+	}
+	assert.NoError(t, store.Append(eA1))
+	assert.NoError(t, store.Append(eA2))
+
+	// Create entity B — version 1 should work even though A is at version 2
+	eB1 := &types.Event{
+		Originator: &types.Originator{ID: originatorB.ID, Version: 1},
+		EventType:  "CamConfig.Created",
+		Payload:    `{"name":"camera-B"}`,
+		OccurredOn: time.Now().UTC(),
+	}
+	assert.NoError(t, store.Append(eB1))
+
+	// Update entity B to version 2
+	eB2 := &types.Event{
+		Originator: &types.Originator{ID: originatorB.ID, Version: 2},
+		EventType:  "CamConfig.Updated",
+		Payload:    `{"name":"camera-B-v2"}`,
+		OccurredOn: time.Now().UTC(),
+	}
+	assert.NoError(t, store.Append(eB2))
+
+	// Verify A's events are intact
+	eventsA, err := store.Get(&types.Originator{ID: originatorA.ID}, false)
+	assert.NoError(t, err)
+	assert.Len(t, eventsA, 2)
+	assert.Equal(t, eA1.EventType, eventsA[0].EventType)
+	assert.Equal(t, eA2.EventType, eventsA[1].EventType)
+
+	// Verify B's events are intact
+	eventsB, err := store.Get(&types.Originator{ID: originatorB.ID}, false)
+	assert.NoError(t, err)
+	assert.Len(t, eventsB, 2)
+	assert.Equal(t, eB1.EventType, eventsB[0].EventType)
+	assert.Equal(t, eB2.EventType, eventsB[1].EventType)
+
+	// Trying to append version 1 to B again should fail
+	err = store.Append(eB1)
+	assert.Error(t, err)
+
+	// Trying to append version 2 to A again should fail
+	err = store.Append(eA2)
+	assert.Error(t, err)
+
+	// Total logs should be 4
+	logs, err := store.Logs(0, 20, "")
+	assert.NoError(t, err)
+	assert.Len(t, logs, 4)
+}

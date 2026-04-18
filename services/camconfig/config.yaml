@@ -1,3 +1,7 @@
+# dbUri options:
+#   inmemory://              - In-memory store (default, no persistence)
+#   file://<path>            - File-based store (e.g. file://./data/camconfig.json)
+#   postgres connection str  - PostgreSQL store
 listenAddr: ":8081"
 dbUri: "inmemory://"
 templateDir: "./web/templates"
