@@ -1,4 +1,3 @@
-version: '3'
 services:
 
   camconfig:
@@ -11,6 +10,7 @@ services:
       - DB_URI=inmemory://
     profiles:
       - inmemory
+      - test-inmemory
 
   camconfig-filestore:
     build:
@@ -24,3 +24,84 @@ services:
       - ./data:/data
     profiles:
       - filestore
+      - test-filestore
+
+  db:
+    image: postgres
+    restart: always
+    environment:
+      - POSTGRES_PASSWORD=t00r
+      - POSTGRES_DB=eventsourcing
+    ports:
+      - "5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+    profiles:
+      - postgres
+      - test-postgres
+
+  camconfig-postgres:
+    build:
+      context: ../../
+      dockerfile: ./services/camconfig/Dockerfile.standalone
+    ports:
+      - "8081:8081"
+    environment:
+      - DB_URI=host=db port=5432 user=postgres dbname=eventsourcing password=t00r sslmode=disable
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles:
+      - postgres
+      - test-postgres
+
+  gotest-inmemory:
+    build:
+      context: ../../
+      dockerfile: ./docker/Dockerfile.golang
+    volumes:
+      - ../..:/go/src/github.com/makkalot/eskit
+    working_dir: /go/src/github.com/makkalot/eskit
+    command: bash -c "cd tests && ginkgo -v integration/camconfig"
+    environment:
+      - CAMCONFIG_ENDPOINT=camconfig:8081
+    depends_on:
+      - camconfig
+    profiles:
+      - test-inmemory
+
+  gotest-filestore:
+    build:
+      context: ../../
+      dockerfile: ./docker/Dockerfile.golang
+    volumes:
+      - ../..:/go/src/github.com/makkalot/eskit
+    working_dir: /go/src/github.com/makkalot/eskit
+    command: bash -c "cd tests && ginkgo -v integration/camconfig"
+    environment:
+      - CAMCONFIG_ENDPOINT=camconfig-filestore:8081
+    depends_on:
+      - camconfig-filestore
+    profiles:
+      - test-filestore
+
+  gotest-postgres:
+    build:
+      context: ../../
+      dockerfile: ./docker/Dockerfile.golang
+    volumes:
+      - ../..:/go/src/github.com/makkalot/eskit
+    working_dir: /go/src/github.com/makkalot/eskit
+    command: bash -c "cd tests && ginkgo -v integration/camconfig"
+    environment:
+      - CAMCONFIG_ENDPOINT=camconfig-postgres:8081
+    depends_on:
+      camconfig-postgres:
+        condition: service_started
+      db:
+        condition: service_healthy
+    profiles:
+      - test-postgres
