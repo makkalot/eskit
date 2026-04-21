@@ -10,10 +10,21 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Build Docker Images
         run: make build-compose-go
       - name: Test Go Services Unit
         run: make test-compose-go-unit
       - name: Test Go Services Integration
         run: make test-compose-go-integration
+
+  camconfig-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: CamConfig Integration Tests (In-Memory)
+        run: cd services/camconfig && make test-docker-inmemory
+      - name: CamConfig Integration Tests (File Store)
+        run: cd services/camconfig && make test-docker-filestore
+      - name: CamConfig Integration Tests (PostgreSQL)
+        run: cd services/camconfig && make test-docker-postgres

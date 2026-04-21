@@ -41,6 +41,21 @@ test-py:
   script:
     - make test-compose-py
 
+camconfig-test-inmemory:
+  stage: test
+  script:
+    - cd services/camconfig && make test-docker-inmemory
+
+camconfig-test-filestore:
+  stage: test
+  script:
+    - cd services/camconfig && make test-docker-filestore
+
+camconfig-test-postgres:
+  stage: test
+  script:
+    - cd services/camconfig && make test-docker-postgres
+
 release:
   stage: release
   dependencies:
