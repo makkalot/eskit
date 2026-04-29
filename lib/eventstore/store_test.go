@@ -1,7 +1,9 @@
 package eventstore
 
 import (
+	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -382,4 +384,208 @@ func TestFileStoreMultipleOriginators(t *testing.T) {
 	logs, err := store.Logs(0, 20, "")
 	assert.NoError(t, err)
 	assert.Len(t, logs, 4)
+}
+
+func TestFileStoreGetOne(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "events-getone-*.jsonl")
+	assert.NoError(t, err)
+	tmpFilePath := tmpFile.Name()
+	tmpFile.Close()
+
+	t.Cleanup(func() {
+		os.Remove(tmpFilePath)
+	})
+
+	store, err := NewFileMemoryStore(tmpFilePath)
+	assert.NoError(t, err)
+	t.Cleanup(func() {
+		store.Cleanup()
+	})
+
+	originator := &types.Originator{ID: uuid.Must(uuid.NewV4()).String()}
+
+	e1 := &types.Event{
+		Originator: &types.Originator{ID: originator.ID, Version: 1},
+		EventType:  "Project.Created",
+		Payload:    `{"name":"v1"}`,
+		OccurredOn: time.Now().UTC(),
+	}
+	e2 := &types.Event{
+		Originator: &types.Originator{ID: originator.ID, Version: 2},
+		EventType:  "Project.Updated",
+		Payload:    `{"name":"v2"}`,
+		OccurredOn: time.Now().UTC(),
+	}
+	e3 := &types.Event{
+		Originator: &types.Originator{ID: originator.ID, Version: 3},
+		EventType:  "Project.Deleted",
+		Payload:    ``,
+		OccurredOn: time.Now().UTC(),
+	}
+
+	assert.NoError(t, store.Append(e1))
+	assert.NoError(t, store.Append(e2))
+	assert.NoError(t, store.Append(e3))
+
+	// Version 0 should return the latest event (e3).
+	latest, err := store.GetOne(&types.Originator{ID: originator.ID})
+	assert.NoError(t, err)
+	assert.NotNil(t, latest)
+	assert.Equal(t, e3.EventType, latest.EventType)
+	assert.Equal(t, uint64(3), latest.Originator.Version)
+
+	// Specific version should return the exact event.
+	specific, err := store.GetOne(&types.Originator{ID: originator.ID, Version: 2})
+	assert.NoError(t, err)
+	assert.NotNil(t, specific)
+	assert.Equal(t, e2.EventType, specific.EventType)
+	assert.Equal(t, uint64(2), specific.Originator.Version)
+
+	// Non-existent version should return nil.
+	missing, err := store.GetOne(&types.Originator{ID: originator.ID, Version: 5})
+	assert.NoError(t, err)
+	assert.Nil(t, missing)
+
+	// Nil originator should return error.
+	_, err = store.GetOne(nil)
+	assert.Error(t, err)
+}
+
+func TestFileStorePayloadAsJSON(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "events-payload-*.jsonl")
+	assert.NoError(t, err)
+	tmpFilePath := tmpFile.Name()
+	tmpFile.Close()
+
+	t.Cleanup(func() {
+		os.Remove(tmpFilePath)
+	})
+
+	store, err := NewFileMemoryStore(tmpFilePath)
+	assert.NoError(t, err)
+	t.Cleanup(func() {
+		store.Cleanup()
+	})
+
+	originator := &types.Originator{ID: uuid.Must(uuid.NewV4()).String()}
+	e1 := &types.Event{
+		Originator: &types.Originator{ID: originator.ID, Version: 1},
+		EventType:  "Project.Created",
+		Payload:    `{"name":"test","count":42}`,
+		OccurredOn: time.Now().UTC(),
+	}
+	e2 := &types.Event{
+		Originator: &types.Originator{ID: originator.ID, Version: 2},
+		EventType:  "Project.Updated",
+		Payload:    "plain string",
+		OccurredOn: time.Now().UTC(),
+	}
+	e3 := &types.Event{
+		Originator: &types.Originator{ID: originator.ID, Version: 3},
+		EventType:  "Project.Deleted",
+		Payload:    "",
+		OccurredOn: time.Now().UTC(),
+	}
+
+	assert.NoError(t, store.Append(e1))
+	assert.NoError(t, store.Append(e2))
+	assert.NoError(t, store.Append(e3))
+
+	// Verify the raw file contains readable JSON objects, not escaped strings.
+	raw, err := os.ReadFile(tmpFilePath)
+	assert.NoError(t, err)
+	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	assert.Len(t, lines, 3)
+
+	var payloadLine1 map[string]interface{}
+	assert.NoError(t, json.Unmarshal([]byte(lines[0]), &payloadLine1))
+	payload1, ok := payloadLine1["payload"].(map[string]interface{})
+	assert.True(t, ok, "payload should be stored as JSON object")
+	assert.Equal(t, "test", payload1["name"])
+	assert.Equal(t, float64(42), payload1["count"])
+
+	var payloadLine2 map[string]interface{}
+	assert.NoError(t, json.Unmarshal([]byte(lines[1]), &payloadLine2))
+	// Plain string can't be parsed as JSON, so it stays a string.
+	assert.Equal(t, "plain string", payloadLine2["payload"])
+
+	var payloadLine3 map[string]interface{}
+	assert.NoError(t, json.Unmarshal([]byte(lines[2]), &payloadLine3))
+	// Empty payload stored as null.
+	assert.Nil(t, payloadLine3["payload"])
+
+	// Verify the API still returns string payloads after reopening.
+	store2, err := NewFileMemoryStore(tmpFilePath)
+	assert.NoError(t, err)
+	defer func() {
+		store2.file.Close()
+		store2.read_file.Close()
+	}()
+
+	events, err := store2.Get(&types.Originator{ID: originator.ID}, false)
+	assert.NoError(t, err)
+	assert.Len(t, events, 3)
+	assert.JSONEq(t, `{"name":"test","count":42}`, events[0].Payload)
+	assert.Equal(t, "plain string", events[1].Payload)
+	assert.Equal(t, "", events[2].Payload)
+}
+
+func TestStoreDuplicateVersionZero(t *testing.T) {
+	sqlStore, err := NewSqlStore("sqlite3", "estore-dup.db")
+	assert.NoError(t, err)
+	assert.NotNil(t, sqlStore)
+
+	memoryStore := NewInMemoryStore()
+
+	tmpFile, err := os.CreateTemp("", "events-dup-*.jsonl")
+	assert.NoError(t, err)
+	tmpFilePath := tmpFile.Name()
+	tmpFile.Close()
+
+	fileStore, err := NewFileMemoryStore(tmpFilePath)
+	assert.NoError(t, err)
+	assert.NotNil(t, fileStore)
+
+	testCases := []struct {
+		name  string
+		store Store
+	}{
+		{"sql store", sqlStore},
+		{"inmemory store", memoryStore},
+		{"file store", fileStore},
+	}
+
+	t.Cleanup(func() {
+		if _, err := os.Stat("estore-dup.db"); err == nil {
+			assert.NoError(t, os.Remove("estore-dup.db"))
+		}
+		assert.NoError(t, fileStore.Cleanup())
+	})
+
+	for _, tc := range testCases {
+		currentStore := tc.store
+		t.Run(tc.name, func(t *testing.T) {
+			originator := &types.Originator{
+				ID: uuid.Must(uuid.NewV4()).String(),
+			}
+
+			e0 := &types.Event{
+				Originator: &types.Originator{
+					ID:      originator.ID,
+					Version: 0,
+				},
+				EventType:  "Project.Created",
+				Payload:    "{}",
+				OccurredOn: time.Now().UTC(),
+			}
+
+			// First append with Version 0 should succeed.
+			err := currentStore.Append(e0)
+			assert.NoError(t, err)
+
+			// Second append with same Version 0 should fail as duplicate.
+			err = currentStore.Append(e0)
+			assert.Error(t, err)
+		})
+	}
 }

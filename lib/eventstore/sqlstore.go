@@ -14,11 +14,12 @@ import (
 )
 
 type StoredEvent struct {
-	OriginatorID      string `gorm:"primary_key; not null"`
-	OriginatorVersion uint   `gorm:"primary_key; not null"`
+	ID                uint64 `gorm:"primary_key; AUTO_INCREMENT; not null"`
+	OriginatorID      string `gorm:"type:varchar(255); not null; unique_index:idx_originator_version"`
+	OriginatorVersion uint   `gorm:"not null; unique_index:idx_originator_version"`
 	EventType         string `gorm:"type:varchar(255); not null; index"`
 	Payload           string `gorm:"type:text"`
-	CreatedAt         time.Timer
+	CreatedAt         time.Time
 }
 
 type StoredLogEntry struct {
@@ -26,7 +27,7 @@ type StoredLogEntry struct {
 	ApplicationID string `gorm:"type:varchar(255); not null; index:index_app_partition; default:'consumer'"`
 	PartitionID   string `gorm:"type:varchar(255); not null; index:index_app_partition"`
 	EventPayload  string `gorm:"type:text"`
-	CreatedAt     time.Timer
+	CreatedAt     time.Time
 }
 
 type SqlStore struct {
@@ -181,7 +182,7 @@ func (estore *SqlStore) Logs(fromID uint64, size uint32, pipelineID string) ([]*
 	}
 
 	if pipelineID != "" {
-		q = estore.db.Where("partition_id = ?", pipelineID)
+		q = q.Where("partition_id = ?", pipelineID)
 	}
 
 	results := q.Order("id").Limit(size).Find(&storedLogs)
