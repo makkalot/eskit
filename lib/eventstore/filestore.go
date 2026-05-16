@@ -80,6 +80,36 @@ func NewFileMemoryStore(storePath string) (*FileMemoryStore, error) {
 	return s, nil
 }
 
+// GetOne gets single event with given originator, if originator version is missing
+// it will return the latest event for the originator, otherwise it will return the event with the specific version
+func (s *FileMemoryStore) GetOne(originator *types.Originator) (*types.Event, error) {
+	if originator == nil {
+		return nil, fmt.Errorf("originator cannot be nil")
+	}
+
+	events, err := s.Get(originator, false)
+	if err != nil {
+		return nil, err
+	}
+	if len(events) == 0 {
+		return nil, nil
+	}
+
+	if originator.Version == 0 {
+		return events[len(events)-1], nil
+	}
+
+	// Get with fromVersion=false returns events with version <= originator.Version.
+	// The last event is the highest version that is <= the requested version.
+	// We need exactly the requested version.
+	lastEvent := events[len(events)-1]
+	if lastEvent.Originator.Version != originator.Version {
+		return nil, nil
+	}
+
+	return lastEvent, nil
+}
+
 // loadFromFile scans the existing file and reconstructs storedLogEntries,
 // lastEvent, lastEventLine, and lastByteOffset so that the store can resume
 // correctly after being reopened.
@@ -125,6 +155,38 @@ func (s *FileMemoryStore) loadFromFile() error {
 	return scanner.Err()
 }
 
+// payloadToStored converts a string payload into a Go value suitable for JSON
+// encoding. If the string is valid JSON it returns the parsed object/array/value
+// so it is written as clean JSON rather than an escaped string. Empty payloads
+// become nil (encoded as null). Non-JSON strings are kept as-is.
+func payloadToStored(payload string) interface{} {
+	if payload == "" {
+		return nil
+	}
+	var raw interface{}
+	if err := json.Unmarshal([]byte(payload), &raw); err == nil {
+		return raw
+	}
+	return payload
+}
+
+// payloadFromStored reverses payloadToStored. It accepts a string (for backward
+// compatibility with old files), nil (maps to empty string), or any JSON value
+// which is re-serialised to a string.
+func payloadFromStored(stored interface{}) string {
+	if stored == nil {
+		return ""
+	}
+	if s, ok := stored.(string); ok {
+		return s
+	}
+	b, err := json.Marshal(stored)
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
 func (s *FileMemoryStore) Cleanup() error {
 	s.file.Close()
 	s.read_file.Close()
@@ -137,16 +199,18 @@ func (s *FileMemoryStore) Cleanup() error {
 
 func (s *FileMemoryStore) Append(event *types.Event) error {
 	var latestVersion uint64
+	var found bool
 	for i := len(s.storedLogEntries) - 1; i >= 0; i-- {
 		if s.storedLogEntries[i].EventOriginatorId == event.Originator.ID {
 			latestVersion = s.storedLogEntries[i].EventOriginatorVersion
+			found = true
 			break
 		}
 	}
 
 	newVersion := event.Originator.Version
 
-	if latestVersion > 0 && newVersion <= latestVersion {
+	if found && newVersion <= latestVersion {
 		return fmt.Errorf("you apply version : %d, db version is : %d for %s: %w", newVersion, latestVersion, event.Originator.ID, ErrDuplicate)
 	}
 
@@ -212,7 +276,7 @@ func (s *FileMemoryStore) Get(originator *types.Originator, fromVersion bool) ([
 				return nil, fmt.Errorf("failed to unmarshal event at offset %d: %w", currentOffset, err)
 			}
 
-			payload, _ := fileEvent.Payload.(string)
+			payload := payloadFromStored(fileEvent.Payload)
 			events = append(events, &types.Event{
 				Originator: &types.Originator{
 					ID:      fileEvent.OriginatorID,
@@ -293,7 +357,7 @@ func (s *FileMemoryStore) Logs(fromID uint64, size uint32, pipelineID string) ([
 				return nil, fmt.Errorf("failed to unmarshal event for log entry %d: %w", logEntry.ID, err)
 			}
 
-			payload, _ := fileEvent.Payload.(string)
+			payload := payloadFromStored(fileEvent.Payload)
 			event := &types.Event{
 				Originator: &types.Originator{
 					ID:      fileEvent.OriginatorID,
@@ -360,7 +424,7 @@ func (s *FileMemoryStore) appendFileEvent(event *types.Event) error {
 		OriginatorID:      event.Originator.ID,
 		OriginatorVersion: uint64(event.Originator.Version),
 		EventType:         event.EventType,
-		Payload:           event.Payload,
+		Payload:           payloadToStored(event.Payload),
 		CreatedAt:         time.Now().Unix(),
 	}
 
