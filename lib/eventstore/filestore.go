@@ -120,6 +120,7 @@ func (s *FileMemoryStore) loadFromFile() error {
 	}
 
 	scanner := bufio.NewScanner(s.read_file)
+	scanner.Buffer(make([]byte, 4096), 2*1024*1024)
 	var lineNumber int64
 	var byteOffset int64
 
@@ -264,6 +265,7 @@ func (s *FileMemoryStore) Get(originator *types.Originator, fromVersion bool) ([
 	}
 
 	scanner := bufio.NewScanner(s.read_file)
+	scanner.Buffer(make([]byte, 4096), 2*1024*1024)
 	currentOffset := firstOffset
 
 	for scanner.Scan() {
@@ -345,6 +347,7 @@ func (s *FileMemoryStore) Logs(fromID uint64, size uint32, pipelineID string) ([
 
 	var logs []*types.AppLogEntry
 	scanner := bufio.NewScanner(s.read_file)
+	scanner.Buffer(make([]byte, 4096), 2*1024*1024)
 	currentOffset := firstOffset
 
 	for scanner.Scan() {
