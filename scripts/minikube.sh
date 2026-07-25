@@ -5,9 +5,9 @@ function minikube_service_endpoints(){
    local final_str=""
 	for service_name in $@; do
 	    endpoint=`minikube service eskit-${service_name}-${service_name} --url | xargs | awk '{print $1;}'`
-	    endpoint_grpc="${endpoint#http://}"
+	    host="${endpoint#http://}"
 		endpoint_upper=`echo $service_name | awk '{print toupper($0)}'`_ENDPOINT
-		export_str=`printf "export $endpoint_upper=$endpoint_grpc \n"`
+		export_str=`printf "export $endpoint_upper=$host \n"`
 		final_str="$final_str $export_str"
 	done
 
