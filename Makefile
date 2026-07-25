@@ -59,8 +59,7 @@ all: build
 build: build-compose-go
 
 # Cleaning UP, every section has a clean-{section}-{cm1}.. which tries to be reverse
-# of what's beeen done. For example clean-generate cleans all the generated files
-# And glean-generate-grpc cleans up all the generated grpc files
+# of what's been done. For example clean-generate cleans all the generated files
 
 .PHONY: clean
 clean: clean-build
@@ -140,5 +139,3 @@ test-go-unit:
 .PHONY: test-go-integration
 test-go-integration:
 	cd tests && ginkgo -r -v
-
-# Generate targets removed - no longer using gRPC/protobuf
